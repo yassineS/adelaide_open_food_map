@@ -173,7 +173,7 @@ BRAND_KEYWORDS: Dict[str, Dict[str, str]] = {
     "yo sushi": {"category": "asian", "cuisine": "japanese"},
     "taco bell": {"category": "mexican", "cuisine": "mexican"},
     "chipotle": {"category": "mexican", "cuisine": "mexican"},
-    "nandos": {"category": "chicken", "cuisine": "portuguese"},
+    "nandos": {"category": "chicken", "cuisine": "british"},
     "wetherspoon": {"category": "pub", "cuisine": "british"},
     "leon": {"category": "fast_casual", "cuisine": "european"},
     "le pain quotidien": {"category": "bakery", "cuisine": "french"}

@@ -4,7 +4,7 @@ import sys
 from collections import Counter
 from math import log
 
-from sklearn.compose import ColumnTransformer
+from sklearn.compose import ColumnTransformer, TransformedTargetRegressor
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
@@ -144,6 +144,19 @@ preprocess = ColumnTransformer(
     sparse_threshold=0
 )
 
+# Custom transform to bound predictions between 1 and 5 (Beta-regression style)
+def _rating_transform(y):
+    # Map [1, 5] to (0, 1) then logit
+    # Clip to [1.01, 4.99] to avoid inf at boundaries
+    y_clamped = np.clip(y, 1.01, 4.99)
+    y_norm = (y_clamped - 1) / 4.0
+    return np.log(y_norm / (1 - y_norm))
+
+def _rating_inverse_transform(z):
+    # Sigmoid then map back to [1, 5]
+    y_norm = 1 / (1 + np.exp(-z))
+    return y_norm * 4.0 + 1.0
+
 gbr = HistGradientBoostingRegressor(
     max_depth=6,
     learning_rate=0.05,
@@ -151,7 +164,14 @@ gbr = HistGradientBoostingRegressor(
     random_state=42
 )
 
-pipe = Pipeline(steps=[("prep", preprocess), ("model", gbr)])
+# Wrap with target transform to enforce bounds
+model = TransformedTargetRegressor(
+    regressor=gbr,
+    func=_rating_transform,
+    inverse_func=_rating_inverse_transform
+)
+
+pipe = Pipeline(steps=[("prep", preprocess), ("model", model)])
 pipe.fit(X, y)
 
 model_df["expected_rating"] = pipe.predict(X)
