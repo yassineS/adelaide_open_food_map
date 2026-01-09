@@ -1,9 +1,9 @@
-[project]
+[workspace]
 name = "adelaide-open-food-map"
 version = "0.1.0"
 description = "Open Food Map for Adelaide, SA"
-authors = ["Your Name"]
-channels = ["conda-forge", "defaults"]
+authors = ["Yassine Souilmi"]
+channels = ["conda-forge"]
 platforms = ["osx-arm64", "linux-64", "osx-64", "win-64"]
 
 [dependencies]
