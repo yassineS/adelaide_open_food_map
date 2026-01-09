@@ -64,9 +64,9 @@ LOG_PATH     = OUTDIR / "progress_log.json"
 GRID_PATH    = OUTDIR / "grid_points.csv"
 PLOTS_DIR    = OUTDIR / "plots"
 
-# API endpoints
-NEARBY_URL   = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-DETAILS_URL  = "https://maps.googleapis.com/maps/api/place/details/json"
+# API endpoints - Using Places API (New)
+NEARBY_URL   = "https://places.googleapis.com/v1/places:searchNearby"
+DETAILS_URL  = "https://places.googleapis.com/v1/places"
 
 # Details fields
 DETAILS_FIELDS = ",".join([
@@ -230,14 +230,34 @@ def generate_grid(lat_min: float, lat_max: float, lon_min: float, lon_max: float
         lons.append(lon); lon += dlon
     return [(la, lo) for la in lats for lo in lons]
 
-def safe_request(url: str, params: Dict, max_retries: int = MAX_RETRIES) -> Dict:
+def safe_request(url: str, params: Dict = None, json_data: Dict = None, method: str = "POST", max_retries: int = MAX_RETRIES) -> Dict:
+    """Make a request to the Places API (New). API key goes in header, not params."""
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": API_KEY,
+        "X-Goog-FieldMask": "places.id,places.displayName,places.types,places.rating,places.priceLevel,places.userRatingCount,places.editorialSummary,places.nationalPhoneNumber,places.websiteUri,places.formattedAddress,places.location,places.businessStatus,places.reviews"
+    }
+    
     for attempt in range(1, max_retries + 1):
         try:
-            resp = requests.get(url, params=params, timeout=30)
+            if method == "POST":
+                resp = requests.post(url, headers=headers, json=json_data, timeout=30)
+            else:
+                resp = requests.get(url, headers=headers, params=params, timeout=30)
+            
             if resp.status_code == 200:
                 return resp.json()
             else:
-                print(f"[warn] HTTP {resp.status_code}: {resp.text[:200]}")
+                error_text = resp.text[:200]
+                print(f"[warn] HTTP {resp.status_code}: {error_text}")
+                # Try to parse error from response
+                try:
+                    error_json = resp.json()
+                    if "error" in error_json:
+                        error_msg = error_json["error"].get("message", error_text)
+                        print(f"[warn] API error message: {error_msg}")
+                except:
+                    pass
         except requests.RequestException as e:
             print(f"[warn] Request error: {e}")
         sleep = min(REQUEST_SLEEP_S * (2 ** (attempt - 1)), 8.0)
@@ -245,41 +265,90 @@ def safe_request(url: str, params: Dict, max_retries: int = MAX_RETRIES) -> Dict
     raise RuntimeError("Failed after retries.")
 
 def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: str) -> list[Dict]:
+    """Search for nearby places using Places API (New)."""
     collected = []
-    params = {"key": API_KEY, "location": f"{lat},{lon}", "radius": radius_m, "type": place_type}
-    data = safe_request(NEARBY_URL, params)
     
-    # Check API response status
-    status = data.get("status")
-    if status != "OK" and status != "ZERO_RESULTS":
-        error_msg = data.get("error_message", "Unknown error")
-        print(f"[error] Google Places API error: {status} - {error_msg}")
-        if status == "REQUEST_DENIED":
-            print("[error] This usually means:")
-            print("  - API key is invalid or missing")
-            print("  - Places API is not enabled for this API key")
-            print("  - API key has restrictions that block this request")
-        elif status == "INVALID_REQUEST":
-            print("[error] Invalid request parameters")
-        elif status == "OVER_QUERY_LIMIT":
-            print("[error] API quota exceeded")
+    # Convert place_type to the new API format
+    # The new API uses includedTypes instead of type parameter
+    included_types = ["restaurant"] if place_type == "restaurant" else [place_type]
+    
+    # Build request body for Places API (New)
+    request_body = {
+        "includedTypes": included_types,
+        "maxResultCount": 20,  # Maximum per page
+        "locationRestriction": {
+            "circle": {
+                "center": {
+                    "latitude": lat,
+                    "longitude": lon
+                },
+                "radius": radius_m  # In meters
+            }
+        }
+    }
+    
+    try:
+        data = safe_request(NEARBY_URL, json_data=request_body, method="POST")
+        
+        # Check for errors in the new API format
+        if "error" in data:
+            error_info = data["error"]
+            error_code = error_info.get("code", "UNKNOWN")
+            error_msg = error_info.get("message", "Unknown error")
+            print(f"[error] Google Places API error: {error_code} - {error_msg}")
+            
+            if error_code == 403 or "permission" in error_msg.lower() or "denied" in error_msg.lower():
+                print("[error] This usually means:")
+                print("  - API key is invalid or missing")
+                print("  - Places API (New) is not enabled for this API key")
+                print("  - API key has restrictions that block this request")
+                print("  - Enable 'Places API (New)' in Google Cloud Console")
+            elif error_code == 400:
+                print("[error] Invalid request parameters")
+            elif error_code == 429:
+                print("[error] API quota exceeded")
+            return []
+        
+        # Extract places from the new API response format
+        places = data.get("places", [])
+        if not places:
+            return []
+        
+        # Convert new API format to legacy format for compatibility with rest of code
+        for place in places:
+            # Map new format to old format
+            location = place.get("location", {})
+            types_list = place.get("types", [])
+            
+            converted_place = {
+                "place_id": place.get("id", ""),
+                "name": place.get("displayName", {}).get("text", ""),
+                "types": types_list,
+                "rating": place.get("rating"),
+                "user_ratings_total": place.get("userRatingCount"),
+                "price_level": place.get("priceLevel"),  # Still 0-4 scale
+                "geometry": {
+                    "location": {
+                        "lat": location.get("latitude"),
+                        "lng": location.get("longitude")
+                    }
+                },
+                "vicinity": place.get("formattedAddress", ""),
+                "business_status": place.get("businessStatus", ""),
+                "editorial_summary": place.get("editorialSummary", {}).get("text", "") if place.get("editorialSummary") else None,
+                "website": place.get("websiteUri"),
+                "international_phone_number": place.get("nationalPhoneNumber"),
+                "reviews": []  # Reviews will be fetched in get_place_details if needed
+            }
+            collected.append(converted_place)
+        
+        # Note: The new API handles pagination differently, but for now we'll get up to maxResultCount
+        # If we need more results, we'd need to implement pagination with nextPageToken
+        
+    except Exception as e:
+        print(f"[error] Failed to search nearby places: {e}")
         return []
     
-    if status == "ZERO_RESULTS":
-        return []
-    
-    results = data.get("results", []); collected.extend(results)
-    while True:
-        next_token = data.get("next_page_token")
-        if not next_token: break
-        time.sleep(PAGE_TOKEN_WAIT_S)
-        params2 = {"key": API_KEY, "pagetoken": next_token}
-        data = safe_request(NEARBY_URL, params2)
-        # Check status on subsequent pages too
-        if data.get("status") not in ("OK", "ZERO_RESULTS"):
-            print(f"[warn] Page token request failed: {data.get('status')}")
-            break
-        results = data.get("results", []); collected.extend(results)
     return collected
 
 def normalize_base_record(r: Dict, source_lat: float, source_lon: float, grid_id: int) -> Dict:
@@ -343,12 +412,68 @@ def load_progress() -> int:
 
 # ---------------------- Details & enrichment ---------------------- #
 
+def _convert_reviews(new_api_reviews: list) -> list:
+    """Convert reviews from new API format to legacy format."""
+    converted = []
+    for review in new_api_reviews:
+        converted.append({
+            "author_name": review.get("authorAttribution", {}).get("displayName", ""),
+            "language": review.get("publishTime", {}).get("language", ""),  # Language might not be in new API
+            "rating": review.get("rating"),
+            "relative_time_description": review.get("publishTime", {}).get("text", "") if review.get("publishTime") else "",
+            "time": review.get("publishTime", {}).get("seconds", 0) if review.get("publishTime") else 0,
+            "text": review.get("text", {}).get("text", "") if isinstance(review.get("text"), dict) else (review.get("text", ""))
+        })
+    return converted
+
 def get_place_details(place_id: str) -> Optional[Dict]:
-    params = {"key": API_KEY, "place_id": place_id, "fields": DETAILS_FIELDS}
-    data = safe_request(DETAILS_URL, params)
-    if data.get("status") != "OK":
+    """Get place details using Places API (New)."""
+    # The new API uses GET with place_id in the URL path
+    url = f"{DETAILS_URL}/{place_id}"
+    
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": API_KEY,
+        "X-Goog-FieldMask": "id,displayName,types,rating,priceLevel,userRatingCount,editorialSummary,nationalPhoneNumber,websiteUri,formattedAddress,location,businessStatus,reviews,openingHours"
+    }
+    
+    try:
+        resp = requests.get(url, headers=headers, timeout=30)
+        if resp.status_code == 200:
+            place = resp.json()
+            # Convert new format to legacy format for compatibility
+            location = place.get("location", {})
+            
+            converted = {
+                "place_id": place.get("id", place_id),
+                "name": place.get("displayName", {}).get("text", ""),
+                "types": place.get("types", []),
+                "rating": place.get("rating"),
+                "user_ratings_total": place.get("userRatingCount"),
+                "price_level": place.get("priceLevel"),
+                "geometry": {
+                    "location": {
+                        "lat": location.get("latitude"),
+                        "lng": location.get("longitude")
+                    }
+                },
+                "vicinity": place.get("formattedAddress", ""),
+                "business_status": place.get("businessStatus", ""),
+                "editorial_summary": {
+                    "overview": place.get("editorialSummary", {}).get("text", "") if place.get("editorialSummary") else None
+                },
+                "website": place.get("websiteUri"),
+                "international_phone_number": place.get("nationalPhoneNumber"),
+                "reviews": _convert_reviews(place.get("reviews", [])),
+                "opening_hours": place.get("openingHours")
+            }
+            return converted
+        else:
+            print(f"[warn] Failed to get place details for {place_id}: HTTP {resp.status_code}")
+            return None
+    except Exception as e:
+        print(f"[warn] Error getting place details for {place_id}: {e}")
         return None
-    return data.get("result", {})
 
 def cuisine_from_text(text: str) -> Optional[str]:
     t = (text or "").lower()
