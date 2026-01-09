@@ -52,10 +52,10 @@ def test_extended_infer_cuisine_chequers_is_pub():
 
 def test_interactive_map_injects_all_boroughs(tmp_path: Path):
     root = _project_root()
-    script_path = root / "src" / "visualization" / "interactive_cuisine_map.py"
+    script_path = root / "src" / "visualisation" / "interactive_cuisine_map.py"
     boroughs_path = root / "data" / "raw" / "london_boroughs.geojson"
 
-    # Minimal input CSV required by the visualization script.
+    # Minimal input CSV required by the visualisation script.
     city = "testcity"
     input_csv = tmp_path / f"{city}_hype_adjusted_ratings.csv"
     input_csv.write_text(
