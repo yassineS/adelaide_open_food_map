@@ -296,9 +296,17 @@ def safe_request(url: str, params: Dict = None, json_data: Dict = None, method: 
                     if error_msg != error_text[:200]:
                         print(f"[warn] API error message: {error_msg[:200]}")
         except requests.RequestException as e:
-            print(f"[warn] Request error: {e}")
-        sleep = min(REQUEST_SLEEP_S * (2 ** (attempt - 1)), 8.0)
-        time.sleep(sleep)
+            print(f"[warn] Request error (attempt {attempt}/{max_retries}): {e}")
+        except RuntimeError:
+            raise  # Re-raise RuntimeErrors (like API not enabled)
+        except Exception as e:
+            print(f"[warn] Unexpected error (attempt {attempt}/{max_retries}): {type(e).__name__}: {e}")
+        
+        if attempt < max_retries:
+            sleep = min(REQUEST_SLEEP_S * (2 ** (attempt - 1)), 8.0)
+            time.sleep(sleep)
+    
+    # If we get here, all retries failed
     raise RuntimeError("Failed after retries.")
 
 def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: str) -> list[Dict]:
@@ -336,7 +344,7 @@ def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: s
         
         # Check if data is None or not a dict
         if not isinstance(data, dict):
-            print(f"[error] Unexpected API response type: {type(data)}")
+            print(f"[error] Unexpected API response type: {type(data)}, value: {str(data)[:200]}")
             return []
         
         # Check for errors in the new API format
@@ -367,13 +375,16 @@ def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: s
         
         # Extract places from the new API response format
         places = data.get("places", [])
+        if not isinstance(places, list):
+            print(f"[warn] API response 'places' field is not a list: {type(places)}")
+            return []
         if not places:
             return []
         
         # Convert new API format to legacy format for compatibility with rest of code
-        for place in places:
+        for idx, place in enumerate(places):
             if not isinstance(place, dict):
-                print(f"[warn] Skipping invalid place entry: {type(place)}")
+                print(f"[warn] Skipping invalid place entry at index {idx}: type={type(place)}, value={str(place)[:100]}")
                 continue
             # Map new format to old format
             location = place.get("location", {})
