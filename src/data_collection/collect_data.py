@@ -338,14 +338,16 @@ def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: s
             error_msg = error_info.get("message", "Unknown error")
             print(f"[error] Google Places API error: {error_code} - {error_msg}")
             
-            if error_code == 403 or "permission" in str(error_msg).lower() or "denied" in str(error_msg).lower() or "not enabled" in str(error_msg).lower():
+            if error_code == 403 or "permission" in str(error_msg).lower() or "denied" in str(error_msg).lower() or "not enabled" in str(error_msg).lower() or "not been used" in str(error_msg).lower():
                 print("[error] This usually means:")
                 print("  - API key is invalid or missing")
                 print("  - Places API (New) is not enabled for this API key")
                 print("  - API key has restrictions that block this request")
                 print("  - Enable 'Places API (New)' in Google Cloud Console")
-                # Raise RuntimeError so main loop can catch it and exit early
-                raise RuntimeError(f"Places API (New) not enabled: {error_msg}")
+                # Raise a custom exception so main loop can catch it and exit early
+                class APINotEnabledError(RuntimeError):
+                    pass
+                raise APINotEnabledError(f"Places API (New) not enabled: {error_msg}")
             elif error_code == 400:
                 print("[error] Invalid request parameters")
             elif error_code == 429:
@@ -1084,8 +1086,12 @@ def main():
         try:
             results = places_nearby_all_pages(lat, lon, RADIUS_M, PLACE_TYPE)
         except RuntimeError as e:
-            # Check if this is an API not enabled error
-            if "Places API (New) not enabled" in str(e) or "not been used" in str(e) or "disabled" in str(e):
+            # Check if this is an API not enabled error (check for custom exception or error message)
+            error_str = str(e)
+            if ("Places API (New) not enabled" in error_str or 
+                "not been used" in error_str or 
+                "disabled" in error_str or
+                "APINotEnabledError" in type(e).__name__):
                 api_not_enabled = True
                 print(f"\n[error] API is not enabled. Stopping collection to avoid unnecessary API calls.")
                 print(f"[error] Please enable Places API (New) in Google Cloud Console, then retry.")
@@ -1094,6 +1100,15 @@ def main():
                 print(f"[warn] Nearby failed at grid {i}: {e}")
                 save_progress(i, total_points); time.sleep(1.0); continue
         except Exception as e:
+            # Check for API not enabled in any exception
+            error_str = str(e)
+            if ("Places API (New) not enabled" in error_str or 
+                "not been used" in error_str or 
+                "disabled" in error_str):
+                api_not_enabled = True
+                print(f"\n[error] API is not enabled. Stopping collection to avoid unnecessary API calls.")
+                print(f"[error] Please enable Places API (New) in Google Cloud Console, then retry.")
+                break
             print(f"[warn] Nearby failed at grid {i}: {e}")
             save_progress(i, total_points); time.sleep(1.0); continue
 
