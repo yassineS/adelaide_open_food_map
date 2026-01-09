@@ -1035,6 +1035,10 @@ def main():
             if STOP: break
             try:
                 det = get_place_details(pid)
+            except RuntimeError as e:
+                # Configuration errors (expired key, API not enabled, etc.) should fail immediately
+                print(f"[error] Details API failed with configuration error: {e}")
+                raise
             except Exception as e:
                 print(f"[warn] Details failed for {pid}: {e}")
                 det = None
