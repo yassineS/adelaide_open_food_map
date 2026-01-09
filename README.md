@@ -35,11 +35,13 @@ Contributions, critiques, and extensions are very welcome.
 
 #### Google API requirements
 
-The data collection scripts require the **Google Places API**.
+The data collection scripts require the **Places API (New)**.
+
+**Important:** You must enable "Places API (New)" in your Google Cloud Console, not the legacy "Places API". The legacy API is deprecated and will not work with this codebase.
 
 Enabling only the **Maps JavaScript API** or **Maps Embed API** is not sufficient and will result in data collection completing with no restaurants found.
 
-If the Places API is not enabled, the collector may run to completion but produce no output files.
+If the Places API (New) is not enabled, the collector may run to completion but produce no output files. You will see error messages indicating "REQUEST_DENIED" or "legacy API" errors.
 
 1.  **Clone the repository**:
     ```bash
@@ -59,6 +61,7 @@ If the Places API is not enabled, the collector may run to completion but produc
 
 3.  **Environment Variables**:
     Create a `.env` file in the root directory and add your Google Maps API key:
+	
     ```
     GOOGLE_MAPS_API_KEY=your_api_key_here
     ```
@@ -160,7 +163,7 @@ If you have any questions or suggestions, please feel free to contact me at [lau
 
 ## Support
 
-If you enjoyed this project or found it helpful, consider supporting my work!
+This project was written by Lauren Leek, please support here, if you enjoyed this project or found it helpful:
 
-*   [☕ Buy me a coffee](https://buymeacoffee.com/laurenleek)
-*   [📝 Subscribe to my Substack](https://laurenleek.substack.com)
+*   [☕ Buy her a coffee](https://buymeacoffee.com/laurenleek)
+*   [📝 Subscribe to her Substack](https://laurenleek.substack.com)
