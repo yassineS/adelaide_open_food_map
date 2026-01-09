@@ -248,6 +248,26 @@ def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: s
     collected = []
     params = {"key": API_KEY, "location": f"{lat},{lon}", "radius": radius_m, "type": place_type}
     data = safe_request(NEARBY_URL, params)
+    
+    # Check API response status
+    status = data.get("status")
+    if status != "OK" and status != "ZERO_RESULTS":
+        error_msg = data.get("error_message", "Unknown error")
+        print(f"[error] Google Places API error: {status} - {error_msg}")
+        if status == "REQUEST_DENIED":
+            print("[error] This usually means:")
+            print("  - API key is invalid or missing")
+            print("  - Places API is not enabled for this API key")
+            print("  - API key has restrictions that block this request")
+        elif status == "INVALID_REQUEST":
+            print("[error] Invalid request parameters")
+        elif status == "OVER_QUERY_LIMIT":
+            print("[error] API quota exceeded")
+        return []
+    
+    if status == "ZERO_RESULTS":
+        return []
+    
     results = data.get("results", []); collected.extend(results)
     while True:
         next_token = data.get("next_page_token")
@@ -255,6 +275,10 @@ def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: s
         time.sleep(PAGE_TOKEN_WAIT_S)
         params2 = {"key": API_KEY, "pagetoken": next_token}
         data = safe_request(NEARBY_URL, params2)
+        # Check status on subsequent pages too
+        if data.get("status") not in ("OK", "ZERO_RESULTS"):
+            print(f"[warn] Page token request failed: {data.get('status')}")
+            break
         results = data.get("results", []); collected.extend(results)
     return collected
 
