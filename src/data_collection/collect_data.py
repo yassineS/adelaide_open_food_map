@@ -277,6 +277,13 @@ def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: s
         
         # Check API response status (legacy API uses "status" field)
         status = data.get("status")
+        
+        # Debug first request
+        if not hasattr(places_nearby_all_pages, '_debug_printed'):
+            print(f"[debug] API response status: {status}")
+            print(f"[debug] API response keys: {list(data.keys())[:10]}")
+            places_nearby_all_pages._debug_printed = True
+        
         if status == "ZERO_RESULTS":
             return []
         elif status != "OK":
@@ -936,8 +943,19 @@ def main():
         if STOP: break
         lat, lon = grid[i]
         print(f"[info] ({i+1}/{total_points}) Nearby lat={lat:.5f}, lon={lon:.5f}")
+        
+        # Debug first request to see what API returns
+        if i == start_idx and start_idx == 0:
+            print(f"[debug] Testing API connection with first request...")
+        
         try:
             results = places_nearby_all_pages(lat, lon, RADIUS_M, PLACE_TYPE)
+            
+            # Debug first request to show results
+            if i == start_idx and start_idx == 0:
+                print(f"[debug] First API request returned {len(results)} results")
+                if len(results) == 0:
+                    print(f"[debug] Checking API response status...")
         except Exception as e:
             print(f"[warn] Nearby failed at grid {i}: {e}")
             save_progress(i, total_points); time.sleep(1.0); continue
