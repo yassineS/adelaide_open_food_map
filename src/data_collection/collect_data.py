@@ -318,19 +318,34 @@ def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: s
         field_mask = "places.id,places.displayName,places.types,places.rating,places.priceLevel,places.userRatingCount,places.editorialSummary,places.nationalPhoneNumber,places.websiteUri,places.formattedAddress,places.location,places.businessStatus,places.reviews"
         data = safe_request(NEARBY_URL, json_data=request_body, method="POST", field_mask=field_mask)
         
+        # Check if data is a string (error case)
+        if isinstance(data, str):
+            print(f"[error] API returned string response instead of JSON: {data[:200]}")
+            return []
+        
+        # Check if data is None or not a dict
+        if not isinstance(data, dict):
+            print(f"[error] Unexpected API response type: {type(data)}")
+            return []
+        
         # Check for errors in the new API format
         if "error" in data:
             error_info = data["error"]
+            if not isinstance(error_info, dict):
+                print(f"[error] Error info is not a dict: {type(error_info)}")
+                return []
             error_code = error_info.get("code", "UNKNOWN")
             error_msg = error_info.get("message", "Unknown error")
             print(f"[error] Google Places API error: {error_code} - {error_msg}")
             
-            if error_code == 403 or "permission" in error_msg.lower() or "denied" in error_msg.lower():
+            if error_code == 403 or "permission" in str(error_msg).lower() or "denied" in str(error_msg).lower() or "not enabled" in str(error_msg).lower():
                 print("[error] This usually means:")
                 print("  - API key is invalid or missing")
                 print("  - Places API (New) is not enabled for this API key")
                 print("  - API key has restrictions that block this request")
                 print("  - Enable 'Places API (New)' in Google Cloud Console")
+                # Raise RuntimeError so main loop can catch it and exit early
+                raise RuntimeError(f"Places API (New) not enabled: {error_msg}")
             elif error_code == 400:
                 print("[error] Invalid request parameters")
             elif error_code == 429:
@@ -344,29 +359,47 @@ def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: s
         
         # Convert new API format to legacy format for compatibility with rest of code
         for place in places:
+            if not isinstance(place, dict):
+                print(f"[warn] Skipping invalid place entry: {type(place)}")
+                continue
             # Map new format to old format
             location = place.get("location", {})
+            if not isinstance(location, dict):
+                location = {}
+            display_name = place.get("displayName", {})
+            if isinstance(display_name, dict):
+                name_text = display_name.get("text", "")
+            else:
+                name_text = str(display_name) if display_name else ""
+            
             types_list = place.get("types", [])
+            if not isinstance(types_list, list):
+                types_list = []
+            
+            editorial_summary = place.get("editorialSummary")
+            editorial_text = None
+            if editorial_summary and isinstance(editorial_summary, dict):
+                editorial_text = editorial_summary.get("text", "")
             
             converted_place = {
                 "place_id": place.get("id", ""),
-                "name": place.get("displayName", {}).get("text", ""),
+                "name": name_text,
                 "types": types_list,
                 "rating": place.get("rating"),
                 "user_ratings_total": place.get("userRatingCount"),
                 "price_level": place.get("priceLevel"),  # Still 0-4 scale
                 "geometry": {
                     "location": {
-                        "lat": location.get("latitude"),
-                        "lng": location.get("longitude")
+                        "lat": location.get("latitude") if isinstance(location, dict) else None,
+                        "lng": location.get("longitude") if isinstance(location, dict) else None
                     }
                 },
                 "vicinity": place.get("formattedAddress", ""),
                 "business_status": place.get("businessStatus", ""),
-                "editorial_summary": place.get("editorialSummary", {}).get("text", "") if place.get("editorialSummary") else None,
+                "editorial_summary": editorial_text,
                 "website": place.get("websiteUri"),
                 "international_phone_number": place.get("nationalPhoneNumber"),
-                "reviews": _convert_reviews(place.get("reviews", []))  # Convert reviews if available
+                "reviews": _convert_reviews(place.get("reviews", [])) if isinstance(place.get("reviews"), list) else []
             }
             collected.append(converted_place)
         
