@@ -14,12 +14,10 @@ scikit-learn = "*"
 geopandas = "*"
 shapely = "*"
 requests = "*"
-pytest = "*"
-
-[dependencies.pypi]
 python-dotenv = "*"
+pytest = "*"
 
 [tasks]
 collect = "python src/data_collection/collect_data.py --city-name adelaide --lat-min -34.980223 --lat-max -34.840710 --lon-min 138.483725 --lon-max 138.642882"
-analyze = "python src/analysis/analyze_underrated.py --city-name adelaide"
-visualize = "python src/visualization/interactive_cuisine_map.py --city-name adelaide"
+analyse = "python src/analysis/analyse_underrated.py --city-name adelaide"
+visualise = "python src/visualisation/interactive_cuisine_map.py --city-name adelaide"
