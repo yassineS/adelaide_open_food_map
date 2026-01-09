@@ -64,9 +64,9 @@ LOG_PATH     = OUTDIR / "progress_log.json"
 GRID_PATH    = OUTDIR / "grid_points.csv"
 PLOTS_DIR    = OUTDIR / "plots"
 
-# API endpoints - Using Places API (New)
-NEARBY_URL   = "https://places.googleapis.com/v1/places:searchNearby"
-DETAILS_URL  = "https://places.googleapis.com/v1/places"
+# API endpoints
+NEARBY_URL   = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+DETAILS_URL  = "https://maps.googleapis.com/maps/api/place/details/json"
 
 # Details fields
 DETAILS_FIELDS = ",".join([
@@ -230,83 +230,18 @@ def generate_grid(lat_min: float, lat_max: float, lon_min: float, lon_max: float
         lons.append(lon); lon += dlon
     return [(la, lo) for la in lats for lo in lons]
 
-def safe_request(url: str, params: Dict = None, json_data: Dict = None, method: str = "POST", field_mask: str = None, max_retries: int = MAX_RETRIES) -> Dict:
-    """Make a request to the Places API (New). API key goes in header, not params."""
-    default_field_mask = "places.id,places.displayName,places.types,places.rating,places.priceLevel,places.userRatingCount,places.editorialSummary,places.nationalPhoneNumber,places.websiteUri,places.formattedAddress,places.location,places.businessStatus"
-    headers = {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": API_KEY,
-        "X-Goog-FieldMask": field_mask or default_field_mask
-    }
-    
+def safe_request(url: str, params: Dict, max_retries: int = MAX_RETRIES) -> Dict:
     for attempt in range(1, max_retries + 1):
         try:
-            if method == "POST":
-                resp = requests.post(url, headers=headers, json=json_data, timeout=30)
-            else:
-                resp = requests.get(url, headers=headers, params=params, timeout=30)
-            
+            resp = requests.get(url, params=params, timeout=30)
             if resp.status_code == 200:
-                try:
-                    return resp.json()
-                except ValueError:
-                    # Response is not valid JSON
-                    print(f"[error] API returned non-JSON response: {resp.text[:200]}")
-                    raise RuntimeError(f"Invalid JSON response from API: {resp.status_code}")
+                return resp.json()
             else:
-                error_text = resp.text[:500]  # Get more of the error text
-                # Try to parse error from response
-                error_msg = error_text
-                api_not_enabled = False
-                try:
-                    error_json = resp.json()
-                    if isinstance(error_json, dict) and "error" in error_json:
-                        error_info = error_json["error"]
-                        if isinstance(error_info, dict):
-                            error_msg = error_info.get("message", error_text)
-                            error_code = error_info.get("code")
-                            
-                            # Check if this is an API not enabled error
-                            if resp.status_code == 403 and ("not been used" in str(error_msg).lower() or "disabled" in str(error_msg).lower() or "enable it by visiting" in str(error_msg).lower()):
-                                api_not_enabled = True
-                                print(f"[error] HTTP {resp.status_code}: Places API (New) is not enabled!")
-                                print(f"[error] {error_msg}")
-                                # Extract the enable URL if present
-                                if "console.developers.google.com" in str(error_msg):
-                                    import re
-                                    url_match = re.search(r'https://console\.developers\.google\.com[^\s)]+', str(error_msg))
-                                    if url_match:
-                                        print(f"[error] Enable the API here: {url_match.group(0)}")
-                                print("[error] After enabling, wait a few minutes for it to propagate, then retry.")
-                                # Don't retry for API not enabled errors - fail fast
-                                raise RuntimeError(f"Places API (New) not enabled: {error_msg}")
-                            # Return the error JSON so caller can handle it
-                            return error_json
-                except RuntimeError:
-                    raise  # Re-raise API not enabled errors
-                except ValueError:
-                    # Response is not valid JSON
-                    print(f"[warn] HTTP {resp.status_code}: Non-JSON response: {error_text[:200]}")
-                except Exception as e:
-                    print(f"[warn] Error parsing API response: {e}")
-                
-                # For other errors, log as warning and continue retrying
-                if not api_not_enabled:
-                    print(f"[warn] HTTP {resp.status_code}: {error_text[:200]}")
-                    if error_msg != error_text[:200]:
-                        print(f"[warn] API error message: {error_msg[:200]}")
+                print(f"[warn] HTTP {resp.status_code}: {resp.text[:200]}")
         except requests.RequestException as e:
-            print(f"[warn] Request error (attempt {attempt}/{max_retries}): {e}")
-        except RuntimeError:
-            raise  # Re-raise RuntimeErrors (like API not enabled)
-        except Exception as e:
-            print(f"[warn] Unexpected error (attempt {attempt}/{max_retries}): {type(e).__name__}: {e}")
-        
-        if attempt < max_retries:
-            sleep = min(REQUEST_SLEEP_S * (2 ** (attempt - 1)), 8.0)
-            time.sleep(sleep)
-    
-    # If we get here, all retries failed
+            print(f"[warn] Request error: {e}")
+        sleep = min(REQUEST_SLEEP_S * (2 ** (attempt - 1)), 8.0)
+        time.sleep(sleep)
     raise RuntimeError("Failed after retries.")
 
 def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: str) -> list[Dict]:
@@ -502,68 +437,12 @@ def load_progress() -> int:
 
 # ---------------------- Details & enrichment ---------------------- #
 
-def _convert_reviews(new_api_reviews: list) -> list:
-    """Convert reviews from new API format to legacy format."""
-    converted = []
-    for review in new_api_reviews:
-        converted.append({
-            "author_name": review.get("authorAttribution", {}).get("displayName", ""),
-            "language": review.get("publishTime", {}).get("language", ""),  # Language might not be in new API
-            "rating": review.get("rating"),
-            "relative_time_description": review.get("publishTime", {}).get("text", "") if review.get("publishTime") else "",
-            "time": review.get("publishTime", {}).get("seconds", 0) if review.get("publishTime") else 0,
-            "text": review.get("text", {}).get("text", "") if isinstance(review.get("text"), dict) else (review.get("text", ""))
-        })
-    return converted
-
 def get_place_details(place_id: str) -> Optional[Dict]:
-    """Get place details using Places API (New)."""
-    # The new API uses GET with place_id in the URL path
-    url = f"{DETAILS_URL}/{place_id}"
-    
-    headers = {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": API_KEY,
-        "X-Goog-FieldMask": "id,displayName,types,rating,priceLevel,userRatingCount,editorialSummary,nationalPhoneNumber,websiteUri,formattedAddress,location,businessStatus,reviews,openingHours"
-    }
-    
-    try:
-        resp = requests.get(url, headers=headers, timeout=30)
-        if resp.status_code == 200:
-            place = resp.json()
-            # Convert new format to legacy format for compatibility
-            location = place.get("location", {})
-            
-            converted = {
-                "place_id": place.get("id", place_id),
-                "name": place.get("displayName", {}).get("text", ""),
-                "types": place.get("types", []),
-                "rating": place.get("rating"),
-                "user_ratings_total": place.get("userRatingCount"),
-                "price_level": place.get("priceLevel"),
-                "geometry": {
-                    "location": {
-                        "lat": location.get("latitude"),
-                        "lng": location.get("longitude")
-                    }
-                },
-                "vicinity": place.get("formattedAddress", ""),
-                "business_status": place.get("businessStatus", ""),
-                "editorial_summary": {
-                    "overview": place.get("editorialSummary", {}).get("text", "") if place.get("editorialSummary") else None
-                },
-                "website": place.get("websiteUri"),
-                "international_phone_number": place.get("nationalPhoneNumber"),
-                "reviews": _convert_reviews(place.get("reviews", [])),
-                "opening_hours": place.get("openingHours")
-            }
-            return converted
-        else:
-            print(f"[warn] Failed to get place details for {place_id}: HTTP {resp.status_code}")
-            return None
-    except Exception as e:
-        print(f"[warn] Error getting place details for {place_id}: {e}")
+    params = {"key": API_KEY, "place_id": place_id, "fields": DETAILS_FIELDS}
+    data = safe_request(DETAILS_URL, params)
+    if data.get("status") != "OK":
         return None
+    return data.get("result", {})
 
 def cuisine_from_text(text: str) -> Optional[str]:
     t = (text or "").lower()
