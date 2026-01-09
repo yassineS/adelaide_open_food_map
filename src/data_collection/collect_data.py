@@ -1148,7 +1148,7 @@ def main():
         print("  5. Ensure your API key has access to Places API (New)")
         print("  6. If your API key has restrictions, add 'Places API (New)' to the allowed APIs list")
         print("  7. Run the collection script again")
-        return
+        sys.exit(1)
 
     print("[done] Collection + enrichment complete.")
     total_collected = len(seen_place_ids)
