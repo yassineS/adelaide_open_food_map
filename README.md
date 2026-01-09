@@ -35,13 +35,11 @@ Contributions, critiques, and extensions are very welcome.
 
 ### Google API requirements
 
-The data collection scripts require the **Places API (New)**.
-
-**Important:** You must enable "Places API (New)" in your Google Cloud Console, not the legacy "Places API". The legacy API is deprecated and will not work with this codebase.
+The data collection scripts require the **Google Places API**.
 
 Enabling only the **Maps JavaScript API** or **Maps Embed API** is not sufficient and will result in data collection completing with no restaurants found.
 
-If the Places API (New) is not enabled, the collector may run to completion but produce no output files. You will see error messages indicating "REQUEST_DENIED" or "legacy API" errors.
+If the Places API is not enabled, the collector may run to completion but produce no output files.
 
 1. **Clone the repository**:
 

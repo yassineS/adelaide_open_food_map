@@ -245,135 +245,17 @@ def safe_request(url: str, params: Dict, max_retries: int = MAX_RETRIES) -> Dict
     raise RuntimeError("Failed after retries.")
 
 def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: str) -> list[Dict]:
-    """Search for nearby places using Places API (New)."""
     collected = []
-    
-    # Convert place_type to the new API format
-    # The new API uses includedTypes instead of type parameter
-    included_types = ["restaurant"] if place_type == "restaurant" else [place_type]
-    
-    # Build request body for Places API (New)
-    request_body = {
-        "includedTypes": included_types,
-        "maxResultCount": 20,  # Maximum per page
-        "locationRestriction": {
-            "circle": {
-                "center": {
-                    "latitude": lat,
-                    "longitude": lon
-                },
-                "radius": radius_m  # In meters
-            }
-        }
-    }
-    
-    try:
-        # Include reviews in the field mask for nearby search
-        field_mask = "places.id,places.displayName,places.types,places.rating,places.priceLevel,places.userRatingCount,places.editorialSummary,places.nationalPhoneNumber,places.websiteUri,places.formattedAddress,places.location,places.businessStatus,places.reviews"
-        data = safe_request(NEARBY_URL, json_data=request_body, method="POST", field_mask=field_mask)
-        
-        # Check if data is a string (error case)
-        if isinstance(data, str):
-            print(f"[error] API returned string response instead of JSON: {data[:200]}")
-            return []
-        
-        # Check if data is None or not a dict
-        if not isinstance(data, dict):
-            print(f"[error] Unexpected API response type: {type(data)}, value: {str(data)[:200]}")
-            return []
-        
-        # Check for errors in the new API format
-        try:
-            if "error" in data:
-                error_info = data["error"]
-                if not isinstance(error_info, dict):
-                    print(f"[error] Error info is not a dict: {type(error_info)}, value: {str(error_info)[:200]}")
-                    return []
-                error_code = error_info.get("code", "UNKNOWN")
-                error_msg = error_info.get("message", "Unknown error")
-                print(f"[error] Google Places API error: {error_code} - {error_msg}")
-                
-                if error_code == 403 or "permission" in str(error_msg).lower() or "denied" in str(error_msg).lower() or "not enabled" in str(error_msg).lower() or "not been used" in str(error_msg).lower():
-                    print("[error] This usually means:")
-                    print("  - API key is invalid or missing")
-                    print("  - Places API (New) is not enabled for this API key")
-                    print("  - API key has restrictions that block this request")
-                    print("  - Enable 'Places API (New)' in Google Cloud Console")
-                    # Raise a custom exception so main loop can catch it and exit early
-                    class APINotEnabledError(RuntimeError):
-                        pass
-                    raise APINotEnabledError(f"Places API (New) not enabled: {error_msg}")
-                elif error_code == 400:
-                    print("[error] Invalid request parameters")
-                elif error_code == 429:
-                    print("[error] API quota exceeded")
-                return []
-        except (AttributeError, TypeError, KeyError) as e:
-            print(f"[error] Error parsing API response structure: {type(e).__name__}: {e}")
-            print(f"[error] Response data type: {type(data)}, keys: {list(data.keys()) if isinstance(data, dict) else 'N/A'}")
-            return []
-        
-        # Extract places from the new API response format
-        places = data.get("places", [])
-        if not isinstance(places, list):
-            print(f"[warn] API response 'places' field is not a list: {type(places)}")
-            return []
-        if not places:
-            return []
-        
-        # Convert new API format to legacy format for compatibility with rest of code
-        for idx, place in enumerate(places):
-            if not isinstance(place, dict):
-                print(f"[warn] Skipping invalid place entry at index {idx}: type={type(place)}, value={str(place)[:100]}")
-                continue
-            # Map new format to old format
-            location = place.get("location", {})
-            if not isinstance(location, dict):
-                location = {}
-            display_name = place.get("displayName", {})
-            if isinstance(display_name, dict):
-                name_text = display_name.get("text", "")
-            else:
-                name_text = str(display_name) if display_name else ""
-            
-            types_list = place.get("types", [])
-            if not isinstance(types_list, list):
-                types_list = []
-            
-            editorial_summary = place.get("editorialSummary")
-            editorial_text = None
-            if editorial_summary and isinstance(editorial_summary, dict):
-                editorial_text = editorial_summary.get("text", "")
-            
-            converted_place = {
-                "place_id": place.get("id", ""),
-                "name": name_text,
-                "types": types_list,
-                "rating": place.get("rating"),
-                "user_ratings_total": place.get("userRatingCount"),
-                "price_level": place.get("priceLevel"),  # Still 0-4 scale
-                "geometry": {
-                    "location": {
-                        "lat": location.get("latitude") if isinstance(location, dict) else None,
-                        "lng": location.get("longitude") if isinstance(location, dict) else None
-                    }
-                },
-                "vicinity": place.get("formattedAddress", ""),
-                "business_status": place.get("businessStatus", ""),
-                "editorial_summary": editorial_text,
-                "website": place.get("websiteUri"),
-                "international_phone_number": place.get("nationalPhoneNumber"),
-                "reviews": _convert_reviews(place.get("reviews", [])) if isinstance(place.get("reviews"), list) else []
-            }
-            collected.append(converted_place)
-        
-        # Note: The new API handles pagination differently, but for now we'll get up to maxResultCount
-        # If we need more results, we'd need to implement pagination with nextPageToken
-        
-    except Exception as e:
-        print(f"[error] Failed to search nearby places: {e}")
-        return []
-    
+    params = {"key": API_KEY, "location": f"{lat},{lon}", "radius": radius_m, "type": place_type}
+    data = safe_request(NEARBY_URL, params)
+    results = data.get("results", []); collected.extend(results)
+    while True:
+        next_token = data.get("next_page_token")
+        if not next_token: break
+        time.sleep(PAGE_TOKEN_WAIT_S)
+        params2 = {"key": API_KEY, "pagetoken": next_token}
+        data = safe_request(NEARBY_URL, params2)
+        results = data.get("results", []); collected.extend(results)
     return collected
 
 def normalize_base_record(r: Dict, source_lat: float, source_lon: float, grid_id: int) -> Dict:
