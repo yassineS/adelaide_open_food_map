@@ -230,12 +230,13 @@ def generate_grid(lat_min: float, lat_max: float, lon_min: float, lon_max: float
         lons.append(lon); lon += dlon
     return [(la, lo) for la in lats for lo in lons]
 
-def safe_request(url: str, params: Dict = None, json_data: Dict = None, method: str = "POST", max_retries: int = MAX_RETRIES) -> Dict:
+def safe_request(url: str, params: Dict = None, json_data: Dict = None, method: str = "POST", field_mask: str = None, max_retries: int = MAX_RETRIES) -> Dict:
     """Make a request to the Places API (New). API key goes in header, not params."""
+    default_field_mask = "places.id,places.displayName,places.types,places.rating,places.priceLevel,places.userRatingCount,places.editorialSummary,places.nationalPhoneNumber,places.websiteUri,places.formattedAddress,places.location,places.businessStatus"
     headers = {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": API_KEY,
-        "X-Goog-FieldMask": "places.id,places.displayName,places.types,places.rating,places.priceLevel,places.userRatingCount,places.editorialSummary,places.nationalPhoneNumber,places.websiteUri,places.formattedAddress,places.location,places.businessStatus,places.reviews"
+        "X-Goog-FieldMask": field_mask or default_field_mask
     }
     
     for attempt in range(1, max_retries + 1):
@@ -288,7 +289,9 @@ def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: s
     }
     
     try:
-        data = safe_request(NEARBY_URL, json_data=request_body, method="POST")
+        # Include reviews in the field mask for nearby search
+        field_mask = "places.id,places.displayName,places.types,places.rating,places.priceLevel,places.userRatingCount,places.editorialSummary,places.nationalPhoneNumber,places.websiteUri,places.formattedAddress,places.location,places.businessStatus,places.reviews"
+        data = safe_request(NEARBY_URL, json_data=request_body, method="POST", field_mask=field_mask)
         
         # Check for errors in the new API format
         if "error" in data:
@@ -338,7 +341,7 @@ def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: s
                 "editorial_summary": place.get("editorialSummary", {}).get("text", "") if place.get("editorialSummary") else None,
                 "website": place.get("websiteUri"),
                 "international_phone_number": place.get("nationalPhoneNumber"),
-                "reviews": []  # Reviews will be fetched in get_place_details if needed
+                "reviews": _convert_reviews(place.get("reviews", []))  # Convert reviews if available
             }
             collected.append(converted_place)
         
