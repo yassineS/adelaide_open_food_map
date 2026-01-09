@@ -185,6 +185,10 @@ Created by **Lauren leek**.
 
 If you have any questions or suggestions, please feel free to contact me at [laurencaroline.leek@eui.eu](mailto:laurencaroline.leek@eui.eu).
 
+Modified by **Yassine Souilmi**.
+
+For enquiries email: []()
+
 ## Support
 
 This project was written by Lauren Leek, please support here, if you enjoyed this project or found it helpful:
