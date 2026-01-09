@@ -235,27 +235,85 @@ def safe_request(url: str, params: Dict, max_retries: int = MAX_RETRIES) -> Dict
         try:
             resp = requests.get(url, params=params, timeout=30)
             if resp.status_code == 200:
-                return resp.json()
+                try:
+                    data = resp.json()
+                    # Check if response is a dict (should always be for JSON)
+                    if not isinstance(data, dict):
+                        print(f"[error] API returned non-dict JSON: {type(data)}, value: {str(data)[:200]}")
+                        if attempt < max_retries:
+                            sleep = min(REQUEST_SLEEP_S * (2 ** (attempt - 1)), 8.0)
+                            time.sleep(sleep)
+                            continue
+                        raise RuntimeError(f"Invalid API response format: {type(data)}")
+                    return data
+                except ValueError as e:
+                    print(f"[error] Failed to parse JSON response: {e}")
+                    print(f"[error] Response text: {resp.text[:500]}")
+                    if attempt < max_retries:
+                        sleep = min(REQUEST_SLEEP_S * (2 ** (attempt - 1)), 8.0)
+                        time.sleep(sleep)
+                        continue
+                    raise RuntimeError(f"Failed to parse JSON: {e}")
             else:
                 print(f"[warn] HTTP {resp.status_code}: {resp.text[:200]}")
         except requests.RequestException as e:
             print(f"[warn] Request error: {e}")
-        sleep = min(REQUEST_SLEEP_S * (2 ** (attempt - 1)), 8.0)
-        time.sleep(sleep)
+        if attempt < max_retries:
+            sleep = min(REQUEST_SLEEP_S * (2 ** (attempt - 1)), 8.0)
+            time.sleep(sleep)
     raise RuntimeError("Failed after retries.")
 
 def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: str) -> list[Dict]:
     collected = []
     params = {"key": API_KEY, "location": f"{lat},{lon}", "radius": radius_m, "type": place_type}
-    data = safe_request(NEARBY_URL, params)
-    results = data.get("results", []); collected.extend(results)
-    while True:
-        next_token = data.get("next_page_token")
-        if not next_token: break
-        time.sleep(PAGE_TOKEN_WAIT_S)
-        params2 = {"key": API_KEY, "pagetoken": next_token}
-        data = safe_request(NEARBY_URL, params2)
-        results = data.get("results", []); collected.extend(results)
+    
+    try:
+        data = safe_request(NEARBY_URL, params)
+        
+        # Check API response status (legacy API uses "status" field)
+        status = data.get("status")
+        if status == "ZERO_RESULTS":
+            return []
+        elif status != "OK":
+            error_msg = data.get("error_message", "Unknown error")
+            print(f"[error] Google Places API error: {status} - {error_msg}")
+            if status == "REQUEST_DENIED":
+                print("[error] This usually means:")
+                print("  - API key is invalid or missing")
+                print("  - Places API is not enabled for this API key")
+                print("  - API key has restrictions that block this request")
+            elif status == "INVALID_REQUEST":
+                print("[error] Invalid request parameters")
+            elif status == "OVER_QUERY_LIMIT":
+                print("[error] API quota exceeded")
+            return []
+        
+        results = data.get("results", [])
+        if not isinstance(results, list):
+            print(f"[warn] API returned non-list results: {type(results)}")
+            return []
+        collected.extend(results)
+        
+        while True:
+            next_token = data.get("next_page_token")
+            if not next_token: break
+            time.sleep(PAGE_TOKEN_WAIT_S)
+            params2 = {"key": API_KEY, "pagetoken": next_token}
+            data = safe_request(NEARBY_URL, params2)
+            # Check status on subsequent pages too
+            if data.get("status") != "OK":
+                break
+            results = data.get("results", [])
+            if isinstance(results, list):
+                collected.extend(results)
+            else:
+                break
+    except Exception as e:
+        print(f"[error] Failed to search nearby places: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+    
     return collected
 
 def normalize_base_record(r: Dict, source_lat: float, source_lon: float, grid_id: int) -> Dict:
