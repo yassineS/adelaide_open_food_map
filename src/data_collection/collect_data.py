@@ -247,7 +247,12 @@ def safe_request(url: str, params: Dict = None, json_data: Dict = None, method: 
                 resp = requests.get(url, headers=headers, params=params, timeout=30)
             
             if resp.status_code == 200:
-                return resp.json()
+                try:
+                    return resp.json()
+                except ValueError:
+                    # Response is not valid JSON
+                    print(f"[error] API returned non-JSON response: {resp.text[:200]}")
+                    raise RuntimeError(f"Invalid JSON response from API: {resp.status_code}")
             else:
                 error_text = resp.text[:500]  # Get more of the error text
                 # Try to parse error from response
@@ -255,29 +260,35 @@ def safe_request(url: str, params: Dict = None, json_data: Dict = None, method: 
                 api_not_enabled = False
                 try:
                     error_json = resp.json()
-                    if "error" in error_json:
+                    if isinstance(error_json, dict) and "error" in error_json:
                         error_info = error_json["error"]
-                        error_msg = error_info.get("message", error_text)
-                        error_code = error_info.get("code")
-                        
-                        # Check if this is an API not enabled error
-                        if resp.status_code == 403 and ("not been used" in error_msg.lower() or "disabled" in error_msg.lower() or "enable it by visiting" in error_msg.lower()):
-                            api_not_enabled = True
-                            print(f"[error] HTTP {resp.status_code}: Places API (New) is not enabled!")
-                            print(f"[error] {error_msg}")
-                            # Extract the enable URL if present
-                            if "console.developers.google.com" in error_msg:
-                                import re
-                                url_match = re.search(r'https://console\.developers\.google\.com[^\s)]+', error_msg)
-                                if url_match:
-                                    print(f"[error] Enable the API here: {url_match.group(0)}")
-                            print("[error] After enabling, wait a few minutes for it to propagate, then retry.")
-                            # Don't retry for API not enabled errors - fail fast
-                            raise RuntimeError(f"Places API (New) not enabled: {error_msg}")
+                        if isinstance(error_info, dict):
+                            error_msg = error_info.get("message", error_text)
+                            error_code = error_info.get("code")
+                            
+                            # Check if this is an API not enabled error
+                            if resp.status_code == 403 and ("not been used" in str(error_msg).lower() or "disabled" in str(error_msg).lower() or "enable it by visiting" in str(error_msg).lower()):
+                                api_not_enabled = True
+                                print(f"[error] HTTP {resp.status_code}: Places API (New) is not enabled!")
+                                print(f"[error] {error_msg}")
+                                # Extract the enable URL if present
+                                if "console.developers.google.com" in str(error_msg):
+                                    import re
+                                    url_match = re.search(r'https://console\.developers\.google\.com[^\s)]+', str(error_msg))
+                                    if url_match:
+                                        print(f"[error] Enable the API here: {url_match.group(0)}")
+                                print("[error] After enabling, wait a few minutes for it to propagate, then retry.")
+                                # Don't retry for API not enabled errors - fail fast
+                                raise RuntimeError(f"Places API (New) not enabled: {error_msg}")
+                            # Return the error JSON so caller can handle it
+                            return error_json
                 except RuntimeError:
                     raise  # Re-raise API not enabled errors
-                except:
-                    pass
+                except ValueError:
+                    # Response is not valid JSON
+                    print(f"[warn] HTTP {resp.status_code}: Non-JSON response: {error_text[:200]}")
+                except Exception as e:
+                    print(f"[warn] Error parsing API response: {e}")
                 
                 # For other errors, log as warning and continue retrying
                 if not api_not_enabled:
