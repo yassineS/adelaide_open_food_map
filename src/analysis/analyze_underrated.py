@@ -26,7 +26,7 @@ def get_args():
         default=os.path.join("data", "processed"),
         help="Output directory for analyzed data",
     )
-    parser.add_argument("--city-name", type=str, default="london", help="City name")
+    parser.add_argument("--city-name", type=str, default="adelaide", help="City name")
     parser.add_argument(
         "--min-reviews",
         type=int,
@@ -52,7 +52,7 @@ def main() -> int:
     basic_path = os.path.join(args.input_dir, f"{args.city_name}_restaurants.csv")
 
     if not os.path.exists(details_path):
-        sample_details = os.path.join("data", "sample", "london_restaurant_details.csv")
+        sample_details = os.path.join("data", "sample", f"{args.city_name}_restaurant_details.csv")
         if os.path.exists(sample_details):
             print(f"Warning: {details_path} not found. Using sample: {sample_details}")
             details_path = sample_details
