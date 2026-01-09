@@ -865,38 +865,13 @@ def main():
     seen_place_ids: Set[str] = load_seen_place_ids()
     print(f"[info] Already collected base places: {len(seen_place_ids)}")
 
-    api_not_enabled = False
-    
     for i in range(start_idx, total_points):
         if STOP: break
         lat, lon = grid[i]
         print(f"[info] ({i+1}/{total_points}) Nearby lat={lat:.5f}, lon={lon:.5f}")
         try:
             results = places_nearby_all_pages(lat, lon, RADIUS_M, PLACE_TYPE)
-        except RuntimeError as e:
-            # Check if this is an API not enabled error (check for custom exception or error message)
-            error_str = str(e)
-            if ("Places API (New) not enabled" in error_str or 
-                "not been used" in error_str or 
-                "disabled" in error_str or
-                "APINotEnabledError" in type(e).__name__):
-                api_not_enabled = True
-                print(f"\n[error] API is not enabled. Stopping collection to avoid unnecessary API calls.")
-                print(f"[error] Please enable Places API (New) in Google Cloud Console, then retry.")
-                break
-            else:
-                print(f"[warn] Nearby failed at grid {i}: {e}")
-                save_progress(i, total_points); time.sleep(1.0); continue
         except Exception as e:
-            # Check for API not enabled in any exception
-            error_str = str(e)
-            if ("Places API (New) not enabled" in error_str or 
-                "not been used" in error_str or 
-                "disabled" in error_str):
-                api_not_enabled = True
-                print(f"\n[error] API is not enabled. Stopping collection to avoid unnecessary API calls.")
-                print(f"[error] Please enable Places API (New) in Google Cloud Console, then retry.")
-                break
             print(f"[warn] Nearby failed at grid {i}: {e}")
             save_progress(i, total_points); time.sleep(1.0); continue
 
@@ -974,23 +949,12 @@ def main():
         save_progress(i, total_points)
         time.sleep(REQUEST_SLEEP_S)
     
-    if api_not_enabled:
-        print("\n[error] Collection stopped early because Places API (New) is not enabled.")
-        print("[error] Steps to fix:")
-        print("  1. Visit: https://console.developers.google.com/apis/api/places.googleapis.com/overview")
-        print("  2. Select your project (ID: 1058029667289)")
-        print("  3. Click 'Enable' button")
-        print("  4. Wait 2-5 minutes for the change to propagate")
-        print("  5. Ensure your API key has access to Places API (New)")
-        print("  6. If your API key has restrictions, add 'Places API (New)' to the allowed APIs list")
-        print("  7. Run the collection script again")
-        sys.exit(1)
 
     print("[done] Collection + enrichment complete.")
     total_collected = len(seen_place_ids)
     if total_collected == 0:
         print("[warn] No restaurants were collected. This might indicate:")
-        print("  - Google Places API (New) is not enabled or API key is invalid")
+        print("  - Google Places API is not enabled or API key is invalid")
         print("  - The bounding box area has no restaurants")
         print("  - API quota/billing issues")
         print("  Check your .env file and Google Cloud Console for API settings")
