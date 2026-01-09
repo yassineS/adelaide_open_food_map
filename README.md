@@ -47,7 +47,12 @@ If the Places API is not enabled, the collector may run to completion but produc
     cd open_food_map
     ```
 
-2.  **Install dependencies**:
+2.  **Install dependencies using pixi**:
+    ```bash
+    pixi install
+    ```
+    
+    Alternatively, if you don't have pixi installed, you can install it from [pixi.sh](https://pixi.sh) or use pip:
     ```bash
     pip install -r requirements.txt
     ```
@@ -62,8 +67,18 @@ If the Places API is not enabled, the collector may run to completion but produc
 
 ### 1. Data Collection
 
-To collect data for a specific city (e.g., London), run:
+To collect data for Adelaide, SA (default), run:
 
+```bash
+pixi run collect
+```
+
+Or using python directly:
+```bash
+python src/data_collection/collect_data.py --city-name adelaide --lat-min -34.980223 --lat-max -34.840710 --lon-min 138.483725 --lon-max 138.642882
+```
+
+To collect data for a different city, specify the coordinates:
 ```bash
 python src/data_collection/collect_data.py --city-name london --lat-min 51.28 --lat-max 51.69 --lon-min -0.51 --lon-max 0.33
 ```
@@ -79,26 +94,34 @@ Arguments:
 To analyze the collected data and find underrated restaurants:
 
 ```bash
-python src/analysis/analyze_underrated.py --city-name london
+pixi run analyze
 ```
 
-This will read from `data/raw/london_restaurant_details.csv` (or `data/sample/london_restaurant_details.csv` if not found) and write:
+Or using python directly:
+```bash
+python src/analysis/analyze_underrated.py --city-name adelaide
+```
 
-- `data/processed/london_hype_adjusted_ratings.csv`
+This will read from `data/raw/adelaide_restaurant_details.csv` (or `data/sample/adelaide_restaurant_details.csv` if not found) and write:
+
+- `data/processed/adelaide_hype_adjusted_ratings.csv`
 
 ### 3. Visualization
 
 To generate the interactive dashboard with cuisine filtering and borough analysis:
 
 ```bash
-python src/visualization/interactive_cuisine_map.py --city-name london
+pixi run visualize
+```
+
+Or using python directly:
+```bash
+python src/visualization/interactive_cuisine_map.py --city-name adelaide
 ```
 
 This requires the analysis step to be completed first (it reads `data/processed/{city}_hype_adjusted_ratings.csv`). It will generate:
 
-- `output/london_restaurants_interactive.html`
-
-The repository also includes a pre-generated `output/london_restaurants_interactive.html` so you can open it immediately.
+- `output/adelaide_restaurants_interactive.html`
 
 ## How to Contribute & Create New Maps
 
