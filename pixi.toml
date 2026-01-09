@@ -1,4 +1,4 @@
-[workspace]
+[project]
 name = "adelaide-open-food-map"
 version = "0.1.0"
 description = "Open Food Map for Adelaide, SA"
