@@ -7,7 +7,7 @@ import geopandas as gpd
 from shapely.geometry import Point
 
 # Determine the project root based on this script's location
-# Script is in src/visualization/
+# Script is in src/visualisation/
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 DEFAULT_INPUT_DIR = os.path.join(PROJECT_ROOT, "data", "processed")
@@ -105,7 +105,7 @@ df["cuisine"] = df["cuisine"].fillna("Unknown").apply(format_cuisine_name)
 # Use all identified cuisines (no grouping into 'Other')
 df["cuisine_group"] = df["cuisine"]
 
-# Chain vs independent (expected in analyzed CSV; fallback to 0=independent if missing)
+# Chain vs independent (expected in analysed CSV; fallback to 0=independent if missing)
 if "is_chain" not in df.columns:
     df["is_chain"] = 0
 

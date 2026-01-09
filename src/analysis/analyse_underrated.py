@@ -24,7 +24,7 @@ def get_args():
         "--output-dir",
         type=str,
         default=os.path.join("data", "processed"),
-        help="Output directory for analyzed data",
+        help="Output directory for analysed data",
     )
     parser.add_argument("--city-name", type=str, default="adelaide", help="City name")
     parser.add_argument(
@@ -62,7 +62,7 @@ def main() -> int:
 
     df_det = pd.read_csv(details_path)
 
-    # Normalize the restaurant name column for downstream visualization.
+    # Normalize the restaurant name column for downstream visualisation.
     # Some sample/generated datasets may contain name_left/name_right from merges.
     if "name" not in df_det.columns:
         for candidate in ("name_left", "name_right", "restaurant_name", "title"):

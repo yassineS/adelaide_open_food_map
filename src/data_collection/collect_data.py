@@ -668,7 +668,7 @@ def extend_cuisine_offline(out_path: Optional[pathlib.Path] = None, inplace: boo
     print(f"[done] Extended cuisine/brand computed for {len(rows)} places ({changes} updated).")
     print(f"[info] Output written to: {out_file.resolve()}")
 
-# ---------------------- Visualization ---------------------- #
+# ---------------------- Visualisation ---------------------- #
 # read value counts for a column in details CSV
 def _value_counts_from_details(column: str, exclude_unknown: bool = True, min_count: int = 0) -> Tuple[List[str], List[int]]:
     if not DETAILS_CSV.exists():

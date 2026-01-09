@@ -1,12 +1,12 @@
 # Open Food Map
 
-This project provides tools to collect, analyze, and visualize restaurant data. It is designed to be modular and extensible, allowing you to easily add support for new cities.
+This project provides tools to collect, analyse, and visualise restaurant data. It is designed to be modular and extensible, allowing you to easily add support for new cities.
 
 ## Features
 
 *   **Data Collection**: Scrape restaurant data from Google Maps API using a grid-based search.
 *   **Analysis**: Identify "underrated" restaurants using a machine learning model that compares ratings to review counts and other factors.
-*   **Visualization**: Generate interactive HTML maps to explore the culinary landscape.
+*   **Visualisation**: Generate interactive HTML maps to explore the culinary landscape.
 
 ## Project Status & Limitations
 
@@ -24,10 +24,10 @@ Contributions, critiques, and extensions are very welcome.
 *   `src/`: Source code.
     *   `data_collection/`: Scripts for gathering data.
     *   `analysis/`: Scripts for processing and analyzing data.
-    *   `visualization/`: Scripts for creating maps and plots.
+    *   `visualisation/`: Scripts for creating maps and plots.
 *   `data/`: Data storage.
     *   `raw/`: Raw collected data.
-    *   `processed/`: Analyzed and cleaned data.
+    *   `processed/`: Analysed and cleaned data.
     *   `sample/`: Small sample datasets for testing.
 *   `tests/`: Unit tests.
 
@@ -91,32 +91,32 @@ Arguments:
 
 ### 2. Analysis
 
-To analyze the collected data and find underrated restaurants:
+To analyse the collected data and find underrated restaurants:
 
 ```bash
-pixi run analyze
+pixi run analyse
 ```
 
 Or using python directly:
 ```bash
-python src/analysis/analyze_underrated.py --city-name adelaide
+python src/analysis/analyse_underrated.py --city-name adelaide
 ```
 
 This will read from `data/raw/adelaide_restaurant_details.csv` (or `data/sample/adelaide_restaurant_details.csv` if not found) and write:
 
 - `data/processed/adelaide_hype_adjusted_ratings.csv`
 
-### 3. Visualization
+### 3. Visualisation
 
 To generate the interactive dashboard with cuisine filtering and borough analysis:
 
 ```bash
-pixi run visualize
+pixi run visualise
 ```
 
 Or using python directly:
 ```bash
-python src/visualization/interactive_cuisine_map.py --city-name adelaide
+python src/visualisation/interactive_cuisine_map.py --city-name adelaide
 ```
 
 This requires the analysis step to be completed first (it reads `data/processed/{city}_hype_adjusted_ratings.csv`). It will generate:
@@ -143,7 +143,7 @@ This will generate `data/raw/paris_restaurant_details.csv`.
 If you want to combine data with others:
 1.  **Locate your CSV**: Find the `[city]_restaurant_details.csv` file in `data/raw`.
 2.  **Merge**: Since the file structure is identical for every city, you can simply combine CSV files (e.g., using Pandas `pd.concat` or Excel) to create a mega-dataset.
-3.  **Visualize**: Run the visualization script on your combined file to see a multi-city map!
+3.  **Visualise**: Run the visualisation script on your combined file to see a multi-city map!
 
 ### 4. Submit a Pull Request
 If you've improved the code or want to share a sample dataset for a new city, please submit a Pull Request on GitHub.
