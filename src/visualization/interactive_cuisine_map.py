@@ -21,8 +21,8 @@ def get_args():
     parser = argparse.ArgumentParser(description="Create interactive cuisine map")
     parser.add_argument("--input-dir", type=str, default=DEFAULT_INPUT_DIR, help="Input directory")
     parser.add_argument("--output-dir", type=str, default=DEFAULT_OUTPUT_DIR, help="Output directory")
-    parser.add_argument("--city-name", type=str, default="london", help="City name")
-    parser.add_argument("--boroughs-file", type=str, default=os.path.join(DEFAULT_DATA_DIR, "london_boroughs.geojson"), help="Path to boroughs geojson")
+    parser.add_argument("--city-name", type=str, default="adelaide", help="City name")
+    parser.add_argument("--boroughs-file", type=str, default=os.path.join(DEFAULT_DATA_DIR, "adelaide_boroughs.geojson"), help="Path to boroughs geojson")
     return parser.parse_known_args()[0]
 
 args = get_args()
@@ -109,7 +109,7 @@ df["cuisine_group"] = df["cuisine"]
 if "is_chain" not in df.columns:
     df["is_chain"] = 0
 
-# Bounds for initial map view (ensure categories outside central London still appear)
+# Bounds for initial map view (ensure categories outside central Adelaide still appear)
 data_bounds = [
     [float(df["lat"].min()), float(df["lon"].min())],
     [float(df["lat"].max()), float(df["lon"].max())],
@@ -592,7 +592,7 @@ html_content = f"""
     var activePrices = [1, 2, 3, 4];
     
     // --- Map Init ---
-    var map = L.map('map', {{preferCanvas: true, zoomControl: false}}).setView([51.5074, -0.1278], 12);
+    var map = L.map('map', {{preferCanvas: true, zoomControl: false}}).setView([-34.9105, 138.5633], 12);
     
     // Move zoom control to top right
     L.control.zoom({{ position: 'topright' }}).addTo(map);
@@ -603,11 +603,11 @@ html_content = f"""
         maxZoom: 20
     }}).addTo(map);
 
-    // Ensure the initial view includes all points (important when data contains areas outside central London)
+    // Ensure the initial view includes all points (important when data contains areas outside central Adelaide)
     try {{
         map.fitBounds(dataBounds, {{ padding: [30, 30] }});
     }} catch (e) {{
-        // Fallback to default London view if bounds are invalid
+        // Fallback to default Adelaide view if bounds are invalid
     }}
 
     var markersLayer = L.layerGroup().addTo(map);
@@ -743,8 +743,8 @@ html_content = f"""
                 duration: 1.5
             }});
         }} else if (b === "All") {{
-            // Reset to London view
-            map.flyTo([51.5074, -0.1278], 11, {{
+            // Reset to Adelaide view
+            map.flyTo([-34.9105, 138.5633], 11, {{
                 animate: true,
                 duration: 1.5
             }});
