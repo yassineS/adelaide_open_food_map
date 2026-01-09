@@ -348,29 +348,34 @@ def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: s
             return []
         
         # Check for errors in the new API format
-        if "error" in data:
-            error_info = data["error"]
-            if not isinstance(error_info, dict):
-                print(f"[error] Error info is not a dict: {type(error_info)}")
+        try:
+            if "error" in data:
+                error_info = data["error"]
+                if not isinstance(error_info, dict):
+                    print(f"[error] Error info is not a dict: {type(error_info)}, value: {str(error_info)[:200]}")
+                    return []
+                error_code = error_info.get("code", "UNKNOWN")
+                error_msg = error_info.get("message", "Unknown error")
+                print(f"[error] Google Places API error: {error_code} - {error_msg}")
+                
+                if error_code == 403 or "permission" in str(error_msg).lower() or "denied" in str(error_msg).lower() or "not enabled" in str(error_msg).lower() or "not been used" in str(error_msg).lower():
+                    print("[error] This usually means:")
+                    print("  - API key is invalid or missing")
+                    print("  - Places API (New) is not enabled for this API key")
+                    print("  - API key has restrictions that block this request")
+                    print("  - Enable 'Places API (New)' in Google Cloud Console")
+                    # Raise a custom exception so main loop can catch it and exit early
+                    class APINotEnabledError(RuntimeError):
+                        pass
+                    raise APINotEnabledError(f"Places API (New) not enabled: {error_msg}")
+                elif error_code == 400:
+                    print("[error] Invalid request parameters")
+                elif error_code == 429:
+                    print("[error] API quota exceeded")
                 return []
-            error_code = error_info.get("code", "UNKNOWN")
-            error_msg = error_info.get("message", "Unknown error")
-            print(f"[error] Google Places API error: {error_code} - {error_msg}")
-            
-            if error_code == 403 or "permission" in str(error_msg).lower() or "denied" in str(error_msg).lower() or "not enabled" in str(error_msg).lower() or "not been used" in str(error_msg).lower():
-                print("[error] This usually means:")
-                print("  - API key is invalid or missing")
-                print("  - Places API (New) is not enabled for this API key")
-                print("  - API key has restrictions that block this request")
-                print("  - Enable 'Places API (New)' in Google Cloud Console")
-                # Raise a custom exception so main loop can catch it and exit early
-                class APINotEnabledError(RuntimeError):
-                    pass
-                raise APINotEnabledError(f"Places API (New) not enabled: {error_msg}")
-            elif error_code == 400:
-                print("[error] Invalid request parameters")
-            elif error_code == 429:
-                print("[error] API quota exceeded")
+        except (AttributeError, TypeError, KeyError) as e:
+            print(f"[error] Error parsing API response structure: {type(e).__name__}: {e}")
+            print(f"[error] Response data type: {type(data)}, keys: {list(data.keys()) if isinstance(data, dict) else 'N/A'}")
             return []
         
         # Extract places from the new API response format
