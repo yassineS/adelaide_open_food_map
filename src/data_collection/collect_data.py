@@ -245,6 +245,46 @@ def safe_request(url: str, params: Dict, max_retries: int = MAX_RETRIES) -> Dict
                             time.sleep(sleep)
                             continue
                         raise RuntimeError(f"Invalid API response format: {type(data)}")
+                    
+                    # Check API status and fail fast on configuration errors
+                    status = data.get("status")
+                    if status == "REQUEST_DENIED":
+                        error_msg = data.get("error_message", "Unknown error")
+                        
+                        # Check for specific error types
+                        if "expired" in error_msg.lower() or "expired" in str(error_msg).lower():
+                            print(f"\n[error] Google Places API key is expired or invalid.")
+                            print(f"[error] Status: {status}")
+                            print(f"[error] Message: {error_msg}\n")
+                            print("[info] To fix this:")
+                            print("  1. Go to https://console.cloud.google.com/apis/credentials")
+                            print("  2. Check if your API key has expired or been deleted")
+                            print("  3. If expired, create a new API key:")
+                            print("     - Click 'CREATE CREDENTIALS' -> 'API key'")
+                            print("     - Copy the new API key")
+                            print("     - Update your .env file with: GOOGLE_MAPS_API_KEY=new_key_here")
+                            print("  4. Ensure the API key has access to 'Places API' (legacy)")
+                            print("     - Click on the API key")
+                            print("     - Under 'API restrictions', ensure 'Places API' is enabled")
+                            print("\n")
+                            raise RuntimeError("API key is expired or invalid. Please create a new API key and update your .env file.")
+                        else:
+                            print(f"\n[error] Google Places API (Legacy) is not enabled for your project.")
+                            print(f"[error] Status: {status}")
+                            print(f"[error] Message: {error_msg}\n")
+                            print("[info] To enable the legacy Places API:")
+                            print("  1. Go to https://console.cloud.google.com/apis/library")
+                            print("  2. Search for 'Places API' (NOT 'Places API (New)')")
+                            print("  3. Click on 'Places API' and press 'ENABLE'")
+                            print("  4. Ensure your API key has access to this API:")
+                            print("     - Go to https://console.cloud.google.com/apis/credentials")
+                            print("     - Click on your API key")
+                            print("     - Under 'API restrictions', ensure 'Places API' is enabled")
+                            print("\n[info] Note: Google is deprecating the legacy Places API.")
+                            print("  If you cannot enable it, you may need to use 'Places API (New)' instead.")
+                            print("  See: https://developers.google.com/maps/legacy#LegacyApiNotActivatedMapError\n")
+                            raise RuntimeError("Places API (Legacy) is not enabled. Please enable it in Google Cloud Console.")
+                    
                     return data
                 except ValueError as e:
                     print(f"[error] Failed to parse JSON response: {e}")
@@ -256,8 +296,13 @@ def safe_request(url: str, params: Dict, max_retries: int = MAX_RETRIES) -> Dict
                     raise RuntimeError(f"Failed to parse JSON: {e}")
             else:
                 print(f"[warn] HTTP {resp.status_code}: {resp.text[:200]}")
+        except RuntimeError:  # Re-raise API configuration errors immediately
+            raise
         except requests.RequestException as e:
-            print(f"[warn] Request error: {e}")
+            print(f"[warn] Request error (attempt {attempt}/{max_retries}): {e}")
+        except Exception as e:
+            print(f"[warn] Unexpected error (attempt {attempt}/{max_retries}): {type(e).__name__}: {e}")
+        
         if attempt < max_retries:
             sleep = min(REQUEST_SLEEP_S * (2 ** (attempt - 1)), 8.0)
             time.sleep(sleep)
@@ -286,21 +331,18 @@ def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: s
         
         if status == "ZERO_RESULTS":
             return []
-        elif status != "OK":
+        elif status == "OK":
+            pass  # Continue processing
+        else:
+            # Other error statuses (INVALID_REQUEST, OVER_QUERY_LIMIT, etc.)
             error_msg = data.get("error_message", "Unknown error")
-            print(f"[error] Google Places API error: {status} - {error_msg}")
-            if status == "REQUEST_DENIED":
-                print("[error] This usually means:")
-                print("  - API key is invalid or missing")
-                print("  - Places API (legacy) is not enabled for this API key")
-                print("  - API key has restrictions that block this request")
-                print("  - Enable 'Places API' (not 'Places API (New)') in Google Cloud Console")
-                print("  - Or update API key restrictions to include 'Places API'")
-            elif status == "INVALID_REQUEST":
-                print("[error] Invalid request parameters")
+            if status == "INVALID_REQUEST":
+                raise RuntimeError(f"Invalid request parameters: {error_msg}")
             elif status == "OVER_QUERY_LIMIT":
-                print("[error] API quota exceeded")
-            return []
+                raise RuntimeError(f"API quota exceeded: {error_msg}")
+            else:
+                raise RuntimeError(f"Google Places API error ({status}): {error_msg}")
+            # Note: REQUEST_DENIED is already handled in safe_request and will raise there
         
         results = data.get("results", [])
         if not isinstance(results, list):
@@ -324,6 +366,8 @@ def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: s
                 collected.extend(results)
             else:
                 break
+    except RuntimeError:  # Re-raise configuration errors (API not enabled, expired key, etc.)
+        raise
     except Exception as e:
         print(f"[error] Failed to search nearby places: {type(e).__name__}: {e}")
         import traceback
@@ -956,6 +1000,13 @@ def main():
                 print(f"[debug] First API request returned {len(results)} results")
                 if len(results) == 0:
                     print(f"[debug] Checking API response status...")
+        except RuntimeError as e:
+            # RuntimeError indicates a configuration issue that won't resolve by retrying
+            # (e.g., API not enabled, invalid API key, quota exceeded)
+            print(f"\n[error] Fatal error at grid {i}: {e}")
+            print("[error] Stopping collection. Please fix the issue and try again.\n")
+            save_progress(i, total_points)
+            sys.exit(1)
         except Exception as e:
             print(f"[warn] Nearby failed at grid {i}: {e}")
             save_progress(i, total_points); time.sleep(1.0); continue
