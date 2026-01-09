@@ -1,0 +1,25 @@
+[project]
+name = "adelaide-open-food-map"
+version = "0.1.0"
+description = "Open Food Map for Adelaide, SA"
+authors = ["Your Name"]
+channels = ["conda-forge", "defaults"]
+platforms = ["osx-arm64", "linux-64", "osx-64", "win-64"]
+
+[dependencies]
+python = ">=3.9"
+pandas = "*"
+numpy = "*"
+scikit-learn = "*"
+geopandas = "*"
+shapely = "*"
+requests = "*"
+pytest = "*"
+
+[dependencies.pypi]
+python-dotenv = "*"
+
+[tasks]
+collect = "python src/data_collection/collect_data.py --city-name adelaide --lat-min -34.980223 --lat-max -34.840710 --lon-min 138.483725 --lon-max 138.642882"
+analyze = "python src/analysis/analyze_underrated.py --city-name adelaide"
+visualize = "python src/visualization/interactive_cuisine_map.py --city-name adelaide"
