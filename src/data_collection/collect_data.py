@@ -895,18 +895,6 @@ def main():
         print(f"[info] ({i+1}/{total_points}) Nearby lat={lat:.5f}, lon={lon:.5f}")
         try:
             results = places_nearby_all_pages(lat, lon, RADIUS_M, PLACE_TYPE)
-            if i == 0 and len(results) == 0:
-                # Check first grid point for API issues
-                params = {"key": API_KEY, "location": f"{lat},{lon}", "radius": RADIUS_M, "type": PLACE_TYPE}
-                test_resp = requests.get(NEARBY_URL, params=params, timeout=30)
-                if test_resp.status_code == 200:
-                    test_data = test_resp.json()
-                    if test_data.get("status") == "ZERO_RESULTS":
-                        print(f"[info] API returned ZERO_RESULTS - no restaurants found at this location")
-                    elif test_data.get("status") != "OK":
-                        print(f"[warn] API status: {test_data.get('status')} - {test_data.get('error_message', 'Unknown error')}")
-                else:
-                    print(f"[warn] API HTTP {test_resp.status_code}: {test_resp.text[:200]}")
         except Exception as e:
             print(f"[warn] Nearby failed at grid {i}: {e}")
             save_progress(i, total_points); time.sleep(1.0); continue
