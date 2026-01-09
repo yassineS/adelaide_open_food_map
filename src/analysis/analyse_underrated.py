@@ -8,6 +8,7 @@ from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
+from tqdm import tqdm
 
 
 def get_args():
@@ -60,7 +61,9 @@ def main() -> int:
             print(f"Error: Could not find details CSV at {details_path} or sample data.")
             return 1
 
+    print("Loading restaurant details...")
     df_det = pd.read_csv(details_path)
+    print(f"Loaded {len(df_det)} restaurant details")
 
     # Normalise the restaurant name column for downstream visualisation.
     # Some sample/generated datasets may contain name_left/name_right from merges.
@@ -73,8 +76,10 @@ def main() -> int:
             df_det["name"] = ""
 
     if os.path.exists(basic_path):
+        print("Loading basic restaurant data...")
         df_basic = pd.read_csv(basic_path)
         if "place_id" in df_basic.columns and "grid_id" in df_basic.columns:
+            print("Merging restaurant data...")
             df = df_det.merge(df_basic[["place_id", "grid_id"]], on="place_id", how="left")
         else:
             df = df_det.copy()
@@ -82,6 +87,7 @@ def main() -> int:
         df = df_det.copy()
 
     # --- Feature engineering ---
+    print("Engineering features...")
     df["rating"] = pd.to_numeric(df.get("rating"), errors="coerce")
     df["user_ratings_total"] = pd.to_numeric(
         df.get("user_ratings_total"), errors="coerce"
@@ -127,7 +133,7 @@ def main() -> int:
         if "types" in df.columns
         else pd.Series([set()] * len(df))
     )
-    for t in important_types:
+    for t in tqdm(important_types, desc="Processing restaurant types"):
         df[f"type_{t}"] = type_sets.apply(lambda st, t=t: int(t in st))
 
     model_df = df[df["rating"].notna()].copy()
@@ -185,20 +191,25 @@ def main() -> int:
         regressor=gbr,
         func=_rating_transform,
         inverse_func=_rating_inverse_transform,
+        check_inverse=False,
     )
 
     pipe = Pipeline(steps=[("prep", preprocess), ("model", model)])
+    print("Training model...")
     pipe.fit(X, y)
 
+    print("Generating predictions...")
     model_df["expected_rating"] = pipe.predict(X)
     model_df["hype_residual"] = model_df["rating"] - model_df["expected_rating"]
 
+    print(f"Filtering restaurants with at least {args.min_reviews} reviews...")
     out_df = model_df[model_df["user_ratings_total"] >= int(args.min_reviews)].copy()
 
     os.makedirs(args.output_dir, exist_ok=True)
     out_path = os.path.join(args.output_dir, f"{args.city_name}_hype_adjusted_ratings.csv")
+    print(f"Saving results to {out_path}...")
     out_df.to_csv(out_path, index=False)
-    print(f"Saved ratings to {out_path} (rows={len(out_df)})")
+    print(f"✓ Saved ratings to {out_path} (rows={len(out_df)})")
 
     return 0
 

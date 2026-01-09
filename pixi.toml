@@ -16,6 +16,7 @@ shapely = "*"
 requests = "*"
 python-dotenv = "*"
 pytest = "*"
+tqdm = "*"
 
 [tasks]
 collect = "python src/data_collection/collect_data.py --city-name adelaide --lat-min -34.980223 --lat-max -34.840710 --lon-min 138.483725 --lon-max 138.642882"
