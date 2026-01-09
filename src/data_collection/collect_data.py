@@ -270,6 +270,11 @@ def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: s
     try:
         data = safe_request(NEARBY_URL, params)
         
+        # Check if data is actually a dict
+        if not isinstance(data, dict):
+            print(f"[error] API response is not a dict: {type(data)}, value: {str(data)[:200]}")
+            return []
+        
         # Check API response status (legacy API uses "status" field)
         status = data.get("status")
         if status == "ZERO_RESULTS":
@@ -280,8 +285,10 @@ def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: s
             if status == "REQUEST_DENIED":
                 print("[error] This usually means:")
                 print("  - API key is invalid or missing")
-                print("  - Places API is not enabled for this API key")
+                print("  - Places API (legacy) is not enabled for this API key")
                 print("  - API key has restrictions that block this request")
+                print("  - Enable 'Places API' (not 'Places API (New)') in Google Cloud Console")
+                print("  - Or update API key restrictions to include 'Places API'")
             elif status == "INVALID_REQUEST":
                 print("[error] Invalid request parameters")
             elif status == "OVER_QUERY_LIMIT":
@@ -290,7 +297,7 @@ def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: s
         
         results = data.get("results", [])
         if not isinstance(results, list):
-            print(f"[warn] API returned non-list results: {type(results)}")
+            print(f"[warn] API returned non-list results: {type(results)}, value: {str(results)[:200]}")
             return []
         collected.extend(results)
         
@@ -300,6 +307,8 @@ def places_nearby_all_pages(lat: float, lon: float, radius_m: int, place_type: s
             time.sleep(PAGE_TOKEN_WAIT_S)
             params2 = {"key": API_KEY, "pagetoken": next_token}
             data = safe_request(NEARBY_URL, params2)
+            if not isinstance(data, dict):
+                break
             # Check status on subsequent pages too
             if data.get("status") != "OK":
                 break
