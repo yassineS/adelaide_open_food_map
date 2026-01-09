@@ -871,6 +871,18 @@ def main():
         print(f"[info] ({i+1}/{total_points}) Nearby lat={lat:.5f}, lon={lon:.5f}")
         try:
             results = places_nearby_all_pages(lat, lon, RADIUS_M, PLACE_TYPE)
+            if i == 0 and len(results) == 0:
+                # Check first grid point for API issues
+                params = {"key": API_KEY, "location": f"{lat},{lon}", "radius": RADIUS_M, "type": PLACE_TYPE}
+                test_resp = requests.get(NEARBY_URL, params=params, timeout=30)
+                if test_resp.status_code == 200:
+                    test_data = test_resp.json()
+                    if test_data.get("status") == "ZERO_RESULTS":
+                        print(f"[info] API returned ZERO_RESULTS - no restaurants found at this location")
+                    elif test_data.get("status") != "OK":
+                        print(f"[warn] API status: {test_data.get('status')} - {test_data.get('error_message', 'Unknown error')}")
+                else:
+                    print(f"[warn] API HTTP {test_resp.status_code}: {test_resp.text[:200]}")
         except Exception as e:
             print(f"[warn] Nearby failed at grid {i}: {e}")
             save_progress(i, total_points); time.sleep(1.0); continue
@@ -889,7 +901,10 @@ def main():
             append_base_records(new_base_rows)
             print(f"[info] Added {len(new_base_rows)} new base places (total {len(seen_place_ids)})")
         else:
-            print("[info] No new base places from this grid point.]")
+            if len(results) > 0:
+                print(f"[info] Found {len(results)} places but all were duplicates")
+            else:
+                print("[info] No new base places from this grid point]")
 
         # Enrich
         for pid in new_ids:
@@ -947,9 +962,30 @@ def main():
         time.sleep(REQUEST_SLEEP_S)
 
     print("[done] Collection + enrichment complete.")
-    print("Base CSV:", CSV_PATH.resolve())
-    print("Details CSV:", DETAILS_CSV.resolve())
-    print("Reviews CSV:", REVIEWS_CSV.resolve())
+    total_collected = len(seen_place_ids)
+    if total_collected == 0:
+        print("[warn] No restaurants were collected. This might indicate:")
+        print("  - Google Places API is not enabled or API key is invalid")
+        print("  - The bounding box area has no restaurants")
+        print("  - API quota/billing issues")
+        print("  Check your .env file and Google Cloud Console for API settings")
+    else:
+        print(f"[info] Total restaurants collected: {total_collected}")
+    
+    if CSV_PATH.exists():
+        print("Base CSV:", CSV_PATH.resolve())
+    else:
+        print("Base CSV: Not created (no data collected)")
+    
+    if DETAILS_CSV.exists():
+        print("Details CSV:", DETAILS_CSV.resolve())
+    else:
+        print("Details CSV: Not created (no data collected)")
+    
+    if REVIEWS_CSV.exists():
+        print("Reviews CSV:", REVIEWS_CSV.resolve())
+    else:
+        print("Reviews CSV: Not created (no data collected)")
 # CLI entry for offline extended cuisine enrichment
 if __name__ == "__main__":
     if "--extend-cuisine" in sys.argv:
