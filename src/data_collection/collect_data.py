@@ -31,14 +31,14 @@ import argparse
 
 def get_args():
     parser = argparse.ArgumentParser(description="Collect restaurant data from Google Maps")
-    parser.add_argument("--lat-min", type=float, default=51.2868, help="Min Latitude")
-    parser.add_argument("--lat-max", type=float, default=51.6919, help="Max Latitude")
-    parser.add_argument("--lon-min", type=float, default=-0.5103, help="Min Longitude")
-    parser.add_argument("--lon-max", type=float, default=0.3340, help="Max Longitude")
+    parser.add_argument("--lat-min", type=float, default=-34.980223, help="Min Latitude")
+    parser.add_argument("--lat-max", type=float, default=-34.840710, help="Max Latitude")
+    parser.add_argument("--lon-min", type=float, default=138.483725, help="Min Longitude")
+    parser.add_argument("--lon-max", type=float, default=138.642882, help="Max Longitude")
     parser.add_argument("--grid-step", type=float, default=1.5, help="Grid step in km")
     parser.add_argument("--radius", type=int, default=1500, help="Search radius in meters")
     parser.add_argument("--output-dir", type=str, default="data/raw", help="Output directory")
-    parser.add_argument("--city-name", type=str, default="london", help="City name for file naming")
+    parser.add_argument("--city-name", type=str, default="adelaide", help="City name for file naming")
     return parser.parse_known_args()[0]
 
 args = get_args()
@@ -657,7 +657,7 @@ def extend_cuisine_offline(out_path: Optional[pathlib.Path] = None, inplace: boo
             print(f"[info] Backed up original details to {backup}")
         out_file = DETAILS_CSV
     else:
-        out_file = out_path or (OUTDIR / ("london_restaurant_details.extended.csv" if not from_base else "london_restaurant_details.extended_full.csv"))
+        out_file = out_path or (OUTDIR / (f"{CITY_NAME}_restaurant_details.extended.csv" if not from_base else f"{CITY_NAME}_restaurant_details.extended_full.csv"))
         out_file.parent.mkdir(parents=True, exist_ok=True)
 
     with out_file.open("w", newline="", encoding="utf-8") as f:
