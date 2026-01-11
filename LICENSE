@@ -1,4 +1,8 @@
-MIT License
+This project contains code from multiple sources with different licenses:
+
+================================================================================
+MIT License - Original Code by Lauren Leek
+================================================================================
 
 Copyright (c) 2025 Lauren Leek
 
@@ -19,3 +23,26 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+================================================================================
+Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+================================================================================
+Modifications by Yassine Souilmi
+
+This work is licensed under the Creative Commons Attribution-NonCommercial-
+ShareAlike 4.0 International License. To view a copy of this license, visit
+http://creativecommons.org/licenses/by-nc-sa/4.0/ or send a letter to
+Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
+
+================================================================================
+License Summary
+================================================================================
+
+- Original code by Lauren Leek: MIT License (allows commercial use)
+- Modifications by Yassine Souilmi: CC BY-NC-SA 4.0 (non-commercial use only)
+
+Users of this software:
+- May use Lauren's original code under MIT License terms (including commercial use)
+- May use Yassine's modifications under CC BY-NC-SA 4.0 terms (non-commercial only)
+- Must attribute both authors when using or modifying the code
+- Derivative works of Yassine's modifications must be released under CC BY-NC-SA 4.0

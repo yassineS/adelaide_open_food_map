@@ -177,7 +177,16 @@ If you've improved the code or want to share a sample dataset for a new city, pl
 
 ## License
 
-[MIT License](LICENSE)
+This project uses a dual license structure:
+
+* **Original code by Lauren Leek**: [MIT License](LICENSE) (allows commercial use)
+* **Modifications by Yassine Souilmi**: [CC BY-NC-SA 4.0](LICENSE) (non-commercial use only)
+
+See the [LICENSE](LICENSE) file for full details. When using or modifying this code, you must:
+
+* Attribute both authors
+* Respect the MIT License terms for Lauren's original code
+* Respect the CC BY-NC-SA 4.0 terms for Yassine's modifications (non-commercial use only)
 
 ## Contact
 
@@ -187,7 +196,7 @@ If you have any questions or suggestions, please feel free to contact me at [lau
 
 Modified by **Yassine Souilmi**.
 
-For enquiries email: []()
+For enquiries email: [hello@ysouilmi.com](mailto:hello@ysouilmi.com)
 
 ## Support
 
