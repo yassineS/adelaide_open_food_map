@@ -3,8 +3,6 @@ import json
 import os
 import sys
 import argparse
-import geopandas as gpd
-from shapely.geometry import Point
 
 # Determine the project root based on this script's location
 # Script is in src/visualisation/
@@ -22,13 +20,12 @@ def get_args():
     parser.add_argument("--input-dir", type=str, default=DEFAULT_INPUT_DIR, help="Input directory")
     parser.add_argument("--output-dir", type=str, default=DEFAULT_OUTPUT_DIR, help="Output directory")
     parser.add_argument("--city-name", type=str, default="adelaide", help="City name")
-    parser.add_argument("--boroughs-file", type=str, default=os.path.join(DEFAULT_DATA_DIR, "adelaide_boroughs.geojson"), help="Path to boroughs geojson")
+    parser.add_argument("--boroughs-file", type=str, default=os.path.join(DEFAULT_DATA_DIR, "adelaide_boroughs.geojson"), help="Path to boroughs geojson (deprecated, suburbs now extracted from vicinity)")
     return parser.parse_known_args()[0]
 
 args = get_args()
 
 INPUT_FILE = os.path.join(args.input_dir, f"{args.city_name}_hype_adjusted_ratings.csv")
-BOROUGH_FILE = args.boroughs_file
 OUTPUT_FILE = os.path.join(args.output_dir, f"{args.city_name}_restaurants_interactive.html")
 
 # Check if input file exists, if not try sample or fail
@@ -49,47 +46,27 @@ if 'df' not in locals():
 # Filter valid coordinates
 df = df.dropna(subset=["lat", "lon"])
 
-# --- SPATIAL JOIN FOR BOROUGHS ---
-print("Assigning boroughs...")
-borough_centers = {}
-all_borough_names = []
-try:
-    boroughs = gpd.read_file(BOROUGH_FILE)
-    # Ensure CRS matches (assuming WGS84 for lat/lon)
-    if boroughs.crs is None:
-        boroughs.set_crs(epsg=4326, inplace=True)
-    
-    # Calculate centroids for zooming
-    # Reproject to a projected CRS for accurate centroid calculation if needed, 
-    # but for simple zooming WGS84 centroid is usually fine enough for this scale.
-    for _, row in boroughs.iterrows():
-        if row.geometry:
-            c = row.geometry.centroid
-            # Use 'name' as it hasn't been renamed to 'borough_name' yet
-            borough_centers[row['name']] = [c.y, c.x]
+# --- EXTRACT SUBURBS FROM VICINITY FIELD ---
+print("Extracting suburbs from vicinity...")
+suburb_centers = {}
 
-    # Keep a complete list of borough names for the UI dropdown (even if
-    # no restaurants are currently assigned to that borough).
-    all_borough_names = sorted([str(k) for k in borough_centers.keys() if str(k) and str(k) != "Unknown"])
+# Extract suburb from vicinity field (format: "address, suburb")
+def extract_suburb(vicinity):
+    if pd.isna(vicinity) or not vicinity:
+        return "Unknown"
+    vicinity_str = str(vicinity)
+    if ',' in vicinity_str:
+        # Extract the part after the last comma
+        suburb = vicinity_str.split(',')[-1].strip()
+        return suburb if suburb else "Unknown"
+    return "Unknown"
 
-    # Create GeoDataFrame for restaurants
-    geometry = [Point(xy) for xy in zip(df.lon, df.lat)]
-    gdf_restaurants = gpd.GeoDataFrame(df, geometry=geometry, crs="EPSG:4326")
-    
-    # Spatial Join
-    # Rename borough 'name' to avoid conflict
-    boroughs = boroughs.rename(columns={'name': 'borough_name'})
-    
-    # Perform join
-    joined = gpd.sjoin(gdf_restaurants, boroughs[['borough_name', 'geometry']], how="left", predicate="within")
-    
-    # Assign back to df
-    df['borough'] = joined['borough_name'].fillna("Unknown")
-    print("Borough assignment complete.")
-except Exception as e:
-    print(f"Warning: Could not assign boroughs ({e}). Defaulting to 'Unknown'.")
-    df['borough'] = "Unknown"
-    all_borough_names = []
+df['suburb'] = df['vicinity'].apply(extract_suburb)
+
+# Get unique suburbs
+all_suburb_names = sorted([s for s in df['suburb'].unique() if s and s != "Unknown"])
+
+print(f"Suburb extraction complete. Found {len(all_suburb_names)} unique suburbs.")
 
 # Normalize cuisine column
 def format_cuisine_name(c):
@@ -130,7 +107,7 @@ for _, row in df.iterrows():
             "price": int(row["price_level"]) if pd.notnull(row["price_level"]) else 1,
             "vicinity": str(row["vicinity"]).replace('"', ''),
             "hype_residual": round(float(row["hype_residual"]), 2) if pd.notnull(row.get("hype_residual")) else 0.0,
-            "borough": str(row["borough"]),
+            "suburb": str(row["suburb"]),
             "is_chain": int(row["is_chain"]) if pd.notnull(row.get("is_chain")) else 0,
         }
         data_list.append(item)
@@ -485,7 +462,7 @@ html_content = f"""
             <div class="step-icon">🔍</div>
             <div>
                 <strong>Filter & Search</strong>
-                <p style="margin: 5px 0 0 0; color: #666; font-size: 13px;">Use the sidebar to filter by borough, cuisine, price, rating, or search for a specific restaurant name.</p>
+                <p style="margin: 5px 0 0 0; color: #666; font-size: 13px;">Use the sidebar to filter by suburb, cuisine, price, rating, or search for a specific restaurant name.</p>
             </div>
         </div>
 
@@ -529,9 +506,9 @@ html_content = f"""
         </label>
         
         <div style="margin-bottom: 15px;">
-            <label style="display:block; font-size:12px; font-weight:500; margin-bottom:5px;">Borough</label>
-            <select id="boroughSelect" onchange="onBoroughChange()">
-                <option value="All">All Boroughs</option>
+            <label style="display:block; font-size:12px; font-weight:500; margin-bottom:5px;">Suburb</label>
+            <select id="suburbSelect" onchange="onSuburbChange()">
+                <option value="All">All Suburbs</option>
             </select>
         </div>
 
@@ -562,10 +539,10 @@ html_content = f"""
     <div class="control-section">
         <h2>Price Level</h2>
         <div class="price-buttons" id="priceFilters">
-            <div class="price-btn active" onclick="togglePrice(1, this)">£</div>
-            <div class="price-btn active" onclick="togglePrice(2, this)">££</div>
-            <div class="price-btn active" onclick="togglePrice(3, this)">£££</div>
-            <div class="price-btn active" onclick="togglePrice(4, this)">££££</div>
+            <div class="price-btn active" onclick="togglePrice(1, this)">$</div>
+            <div class="price-btn active" onclick="togglePrice(2, this)">$$</div>
+            <div class="price-btn active" onclick="togglePrice(3, this)">$$$</div>
+            <div class="price-btn active" onclick="togglePrice(4, this)">$$$$</div>
         </div>
     </div>
 
@@ -584,8 +561,8 @@ html_content = f"""
 <script>
     // --- Data ---
     var restaurants = {json.dumps(data_list)};
-    var boroughCenters = {json.dumps(borough_centers)};
-    var allBoroughs = {json.dumps(all_borough_names)};
+    var suburbCenters = {json.dumps(suburb_centers)};
+    var allSuburbs = {json.dumps(all_suburb_names)};
     var dataBounds = {json.dumps(data_bounds)};
     
     // --- State ---
@@ -642,11 +619,11 @@ html_content = f"""
     
     var cuisineColors = {{}};
     var uniqueCuisines = [...new Set(restaurants.map(r => r.cuisine_group))].sort();
-    // Populate borough dropdown from the GeoJSON list (all boroughs),
-    // but fall back to restaurant-derived boroughs if GeoJSON load failed.
-    var uniqueBoroughs = (allBoroughs && allBoroughs.length)
-        ? [...allBoroughs]
-        : [...new Set(restaurants.map(r => r.borough))].sort();
+    // Populate suburb dropdown from the restaurant data (all suburbs),
+    // extracted from the vicinity field.
+    var uniqueSuburbs = (allSuburbs && allSuburbs.length)
+        ? [...allSuburbs]
+        : [...new Set(restaurants.map(r => r.suburb))].sort();
 
     // Pin key cuisines to the top so they're always visible in the dropdown/legend
     var cuisinePriority = {{ "Pub": 0, "British": 1 }};
@@ -679,13 +656,13 @@ html_content = f"""
         select.appendChild(opt);
     }});
 
-    var boroughSelect = document.getElementById('boroughSelect');
-    uniqueBoroughs.forEach(b => {{
-        if (b === "Unknown") return;
+    var suburbSelect = document.getElementById('suburbSelect');
+    uniqueSuburbs.forEach(s => {{
+        if (s === "Unknown") return;
         var opt = document.createElement('option');
-        opt.value = b;
-        opt.innerHTML = b;
-        boroughSelect.appendChild(opt);
+        opt.value = s;
+        opt.innerHTML = s;
+        suburbSelect.appendChild(opt);
     }});
 
     var legend = document.getElementById('legend');
@@ -733,16 +710,16 @@ html_content = f"""
         modal.style.display = modal.style.display === 'flex' ? 'none' : 'flex';
     }}
 
-    function onBoroughChange() {{
-        var b = document.getElementById('boroughSelect').value;
-        if (b !== "All" && boroughCenters[b]) {{
-            // Fly to borough centroid
-            // Zoom level 13 is usually good for a borough view
-            map.flyTo(boroughCenters[b], 13, {{
+    function onSuburbChange() {{
+        var s = document.getElementById('suburbSelect').value;
+        if (s !== "All" && suburbCenters[s]) {{
+            // Fly to suburb centroid
+            // Zoom level 13 is usually good for a suburb view
+            map.flyTo(suburbCenters[s], 13, {{
                 animate: true,
                 duration: 1.5
             }});
-        }} else if (b === "All") {{
+        }} else if (s === "All") {{
             // Reset to Adelaide view
             map.flyTo([-34.9105, 138.5633], 11, {{
                 animate: true,
@@ -764,7 +741,7 @@ html_content = f"""
 
     function updateMap() {{
         var selectedCuisine = document.getElementById('cuisineSelect').value;
-        var selectedBorough = document.getElementById('boroughSelect').value;
+        var selectedSuburb = document.getElementById('suburbSelect').value;
         var minRating = parseFloat(document.getElementById('ratingRange').value);
         var minReviews = parseInt(document.getElementById('reviewRange').value);
         var searchText = document.getElementById('searchInput').value.toLowerCase();
@@ -791,7 +768,7 @@ html_content = f"""
             }}
 
             if (selectedCuisine !== "All" && r.cuisine_group !== selectedCuisine) return;
-            if (selectedBorough !== "All" && r.borough !== selectedBorough) return;
+            if (selectedSuburb !== "All" && r.suburb !== selectedSuburb) return;
             if (r.rating < minRating) return;
             if (r.reviews < minReviews) return;
             if (!activePrices.includes(r.price)) return;
@@ -819,7 +796,7 @@ html_content = f"""
                 fillOpacity: 0.85
             }});
             
-            var priceStr = r.price > 0 ? '£'.repeat(r.price) : '?';
+            var priceStr = r.price > 0 ? '$'.repeat(r.price) : '?';
             var hypeBadge = "";
             if (r.hype_residual > 0.2) {{
                 hypeBadge = `<span class="underrated-badge" title="Actual rating is ${{r.hype_residual}} higher than expected">Underrated +${{r.hype_residual}}</span>`;
