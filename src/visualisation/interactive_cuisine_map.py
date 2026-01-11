@@ -554,6 +554,15 @@ html_content = f"""
     <div class="stats" id="stats">
         <strong>0</strong> restaurants visible
     </div>
+
+    <div style="font-size: 10px; color: #999; margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; text-align: center;">
+        <div style="margin-bottom: 5px;">
+            License: <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" style="color: #666; text-decoration: underline;">CC BY-NC-SA 4.0</a>
+        </div>
+        <div style="font-size: 9px; color: #bbb;">
+            Original code: <a href="https://laurenleek.eu" target="_blank" style="color: #999; text-decoration: underline;">MIT License</a>
+        </div>
+    </div>
 </div>
 
 <div id="map"></div>
