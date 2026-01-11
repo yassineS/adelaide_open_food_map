@@ -17,6 +17,7 @@ data/raw/*
 data/processed/*
 output/*
 !output/*_restaurants_interactive.html
+!output/robots.txt
 
 # Local backups (don’t commit)
 data/sample/*.bak.csv
