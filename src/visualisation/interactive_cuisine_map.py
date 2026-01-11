@@ -482,7 +482,7 @@ html_content = f"""
     <div class="control-section">
         <h1>{args.city_name.capitalize()} Food Map</h1>
         <div style="font-size: 11px; color: #999; margin-top: 4px;">
-            Built by <a href="https://laurenleek.eu" target="_blank" style="color: #666; text-decoration: none; font-weight: 500;">Lauren Leek</a>
+            Created by <a href="https://www.ysouilmi.com/" target="_blank" style="color: #666; text-decoration: none; font-weight: 500;">Yassine Souilmi</a> using modified code from <a href="https://laurenleek.eu" target="_blank" style="color: #666; text-decoration: none; font-weight: 500;">Lauren Leek</a>
         </div>
     </div>
 
