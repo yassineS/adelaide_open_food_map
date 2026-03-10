@@ -31,8 +31,17 @@ def get_args():
     parser.add_argument(
         "--min-reviews",
         type=int,
-        default=50,
+        default=25,
         help="Minimum review count threshold for stable hype_residual",
+    )
+    parser.add_argument(
+        "--gem-quantile",
+        type=float,
+        default=0.9,
+        help=(
+            "Quantile of gem_score used to flag is_gem. "
+            "Set to 0 to disable percentile-based gem labelling."
+        ),
     )
     return parser.parse_known_args()[0]
 
@@ -117,6 +126,10 @@ def main() -> int:
         df["brand_name_clean"] = brand.astype(str).str.lower().replace("nan", np.nan)
     df["is_chain"] = df["brand_name_clean"].notna().astype(int)
 
+    # simple availability features
+    df["has_editorial_summary"] = df.get("editorial_summary").notna().astype(int)
+    df["has_website"] = df.get("website").notna().astype(int)
+
     # type flags (lightweight; used in rating model)
     important_types = [
         "restaurant",
@@ -141,7 +154,12 @@ def main() -> int:
         print("Error: No rows with a valid rating to model.")
         return 1
 
-    numeric_features = ["log_reviews", "price_level"] + [f"type_{t}" for t in important_types]
+    numeric_features = [
+        "log_reviews",
+        "price_level",
+        "has_editorial_summary",
+        "has_website",
+    ] + [f"type_{t}" for t in important_types]
     categorical_features = ["cuisine", "grid_id", "business_status"]
 
     numeric_features = [c for c in numeric_features if c in model_df.columns]
@@ -181,9 +199,10 @@ def main() -> int:
         return y_norm * 4.0 + 1.0
 
     gbr = HistGradientBoostingRegressor(
-        max_depth=6,
-        learning_rate=0.05,
-        max_iter=300,
+        max_depth=7,
+        learning_rate=0.08,
+        max_iter=400,
+        l2_regularization=0.1,
         random_state=42,
     )
 
@@ -201,6 +220,22 @@ def main() -> int:
     print("Generating predictions...")
     model_df["expected_rating"] = pipe.predict(X)
     model_df["hype_residual"] = model_df["rating"] - model_df["expected_rating"]
+
+    # gem score and percentile-based gem flag
+    model_df["gem_score"] = model_df["hype_residual"] * np.log1p(
+        model_df["user_ratings_total"].astype(float)
+    )
+    if 0.0 < float(args.gem_quantile) < 1.0:
+        valid_scores = model_df["gem_score"].replace([np.inf, -np.inf], np.nan).dropna()
+        if not valid_scores.empty:
+            threshold = float(valid_scores.quantile(args.gem_quantile))
+            model_df["is_gem"] = (
+                (model_df["gem_score"] >= threshold) & (model_df["hype_residual"] > 0)
+            ).astype(int)
+        else:
+            model_df["is_gem"] = 0
+    else:
+        model_df["is_gem"] = 0
 
     print(f"Filtering restaurants with at least {args.min_reviews} reviews...")
     out_df = model_df[model_df["user_ratings_total"] >= int(args.min_reviews)].copy()

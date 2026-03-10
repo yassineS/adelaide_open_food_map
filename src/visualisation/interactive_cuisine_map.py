@@ -109,6 +109,8 @@ for _, row in df.iterrows():
             "hype_residual": round(float(row["hype_residual"]), 2) if pd.notnull(row.get("hype_residual")) else 0.0,
             "suburb": str(row["suburb"]),
             "is_chain": int(row["is_chain"]) if pd.notnull(row.get("is_chain")) else 0,
+            "is_gem": int(row.get("is_gem")) if "is_gem" in df.columns and pd.notnull(row.get("is_gem")) else 0,
+            "gem_score": float(row.get("gem_score")) if "gem_score" in df.columns and pd.notnull(row.get("gem_score")) else 0.0,
         }
         data_list.append(item)
     except (ValueError, TypeError):
@@ -431,6 +433,20 @@ html_content = f"""
             margin-left: 5px;
         }}
 
+        /* Gem marker (diamond) */
+        .gem-marker {{
+            background: transparent;
+            border: none;
+        }}
+        .gem-marker-inner {{
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            transform: rotate(45deg);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+            border: 2px solid #111;
+        }}
+
         @media (max-width: 768px) {{
             #sidebar {{ transform: translateX(-110%); width: 85%; left: 0; top: 0; bottom: 0; border-radius: 0; }}
             #sidebar.open {{ transform: translateX(0); }}
@@ -576,6 +592,7 @@ html_content = f"""
     
     // --- State ---
     var activePrices = [1, 2, 3, 4];
+    var hasGemFlag = restaurants.some(function(r) {{ return r.is_gem === 1; }});
     
     // --- Map Init ---
     var map = L.map('map', {{preferCanvas: true, zoomControl: false}}).setView([-34.9105, 138.5633], 12);
@@ -609,21 +626,22 @@ html_content = f"""
     
     // Fixed colors for key cuisines to ensure consistency
     var fixedColors = {{
-        "Pub": "#d62828",       // Red
-        "British": "#003049",   // Dark Blue
-        "Italian": "#2a9d8f",   // Teal
-        "Indian": "#e9c46a",    // Yellow
-        "Chinese": "#f4a261",   // Orange
-        "Japanese": "#9b5de5",  // Purple
-        "French": "#00bbf9",    // Light Blue
-        "American": "#333333",  // Dark Grey
-        "Cafe": "#bc6c25",      // Brown
-        "Coffee": "#bc6c25",    // Brown
-        "Pizza": "#e76f51",     // Burnt Orange
-        "Burger": "#8d99ae",    // Grey Blue
-        "Thai": "#06d6a0",      // Green
-        "Turkish": "#ef476f",   // Pink
-        "Middle Eastern": "#dda15e" // Tan
+        "Pub": "#d62828",          // Red
+        "British": "#003049",      // Dark Blue
+        "Italian": "#2a9d8f",      // Teal
+        "Indian": "#e9c46a",       // Yellow
+        "Chinese": "#f4a261",      // Orange
+        "Japanese": "#9b5de5",     // Purple
+        "French": "#00bbf9",       // Light Blue
+        "American": "#333333",     // Dark Grey
+        "Cafe": "#bc6c25",         // Brown
+        "Coffee": "#bc6c25",       // Brown
+        "Pizza": "#e76f51",        // Burnt Orange
+        "Burger": "#8d99ae",       // Grey Blue
+        "Thai": "#06d6a0",         // Green
+        "Turkish": "#ef476f",      // Pink
+        "Middle Eastern": "#dda15e", // Tan
+        "Unknown": "#999999"       // Neutral grey for unknown cuisine
     }};
     
     var cuisineColors = {{}};
@@ -772,8 +790,11 @@ html_content = f"""
             }}
 
             if (showUnderrated) {{
-                // If toggle is ON, only show positive hype residuals
-                if (r.hype_residual <= 0.1) return;
+                if (hasGemFlag) {{
+                    if (r.is_gem !== 1) return;
+                }} else {{
+                    if (r.hype_residual <= 0.05) return;
+                }}
             }}
 
             if (selectedCuisine !== "All" && r.cuisine_group !== selectedCuisine) return;
@@ -785,30 +806,37 @@ html_content = f"""
             
             count++;
             
-            var color;
+            var isGem = (r.is_gem === 1);
+            var color = cuisineColors[r.cuisine_group] || "#333";
             var radius = 6;
-            
-            if (showUnderrated) {{
-                color = getHypeColor(r.hype_residual);
-                // Make highly underrated spots slightly larger
-                if (r.hype_residual > 0.5) radius = 8;
+
+            var marker;
+            if (isGem) {{
+                // Use a diamond-shaped marker for gems
+                var iconHtml = '<div class=\"gem-marker-inner\" style=\"background:' + color + ';\"></div>';
+                marker = L.marker([r.lat, r.lon], {{
+                    icon: L.divIcon({{
+                        className: 'gem-marker',
+                        html: iconHtml,
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
+                    }})
+                }});
             }} else {{
-                color = cuisineColors[r.cuisine_group] || "#333";
+                marker = L.circleMarker([r.lat, r.lon], {{
+                    radius: radius,
+                    fillColor: color,
+                    color: "white",
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.9
+                }});
             }}
-            
-            var marker = L.circleMarker([r.lat, r.lon], {{
-                radius: radius,
-                fillColor: color,
-                color: "white",
-                weight: 1,
-                opacity: 1,
-                fillOpacity: 0.85
-            }});
             
             var priceStr = r.price > 0 ? '$'.repeat(r.price) : '?';
             var hypeBadge = "";
-            if (r.hype_residual > 0.2) {{
-                hypeBadge = `<span class="underrated-badge" title="Actual rating is ${{r.hype_residual}} higher than expected">Underrated +${{r.hype_residual}}</span>`;
+            if (isGem || r.hype_residual > 0.1) {{
+                hypeBadge = `<span class="underrated-badge" title="Model thinks this place is underrated by about ${{r.hype_residual}} stars">💎 +${{r.hype_residual}}</span>`;
             }}
             
             var popupContent = `

@@ -128,6 +128,22 @@ This will read from `data/raw/adelaide_restaurant_details.csv` (or `data/sample/
 
 -> `data/processed/adelaide_hype_adjusted_ratings.csv`
 
+The analysis script:
+
+- learns an expected rating given features like review volume (log-transformed), price level, cuisine, basic place types, and simple availability signals (editorial summary / website),
+- computes a **hype-adjusted residual** `hype_residual = rating - expected_rating`,
+- derives a **gem score** `gem_score = hype_residual * log(1 + reviews)` and flags high-scoring places as `is_gem` using a quantile cut.
+
+Key CLI options:
+
+- `--min-reviews` (default: `25`): minimum number of reviews required for a restaurant to be included in the processed CSV used by the map.
+- `--gem-quantile` (default: `0.9`): quantile of `gem_score` used to set `is_gem`. Set to `0` to disable percentile-based gem labelling.
+
+On the map, the **“Highlight Underrated Gems”** toggle:
+
+- prefers the `is_gem` flag where available, showing those restaurants as gems,
+- otherwise falls back to a lighter rule that surfaces restaurants with a modestly positive `hype_residual`.
+
 ### 3. Visualisation
 
 To generate the interactive dashboard with cuisine filtering and borough analysis:
@@ -197,6 +213,20 @@ If you have any questions or suggestions, please feel free to contact me at [lau
 Modified by **Yassine Souilmi**.
 
 For enquiries email: [hello@ysouilmi.com](mailto:hello@ysouilmi.com)
+
+## Related Projects
+
+### iOS App
+
+An iOS app that consumes the processed CSV data from this repository:
+
+📱 **[Restaurant Map iOS](https://github.com/yassineS/restaurant-map-ios)** - Native iOS app for visualizing and discovering hidden gem restaurants on mobile devices.
+
+The iOS app provides:
+- Interactive map visualization
+- Filtering by cuisine and price level
+- Discovery of hidden gems using `hype_residual` scores
+- Native iOS experience with SwiftUI
 
 ## Support
 
