@@ -27,6 +27,8 @@ args = get_args()
 
 INPUT_FILE = os.path.join(args.input_dir, f"{args.city_name}_hype_adjusted_ratings.csv")
 OUTPUT_FILE = os.path.join(args.output_dir, f"{args.city_name}_restaurants_interactive.html")
+# Path for GitHub Pages docs site (served as docs/index.html)
+DOCS_INDEX_FILE = os.path.join(PROJECT_ROOT, "docs", "index.html")
 
 # Check if input file exists, if not try sample or fail
 if not os.path.exists(INPUT_FILE):
@@ -879,10 +881,16 @@ html_content = f"""
 </html>
 """
 
-# Ensure output directory exists
+# Ensure output and docs directories exist
 os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
+os.makedirs(os.path.dirname(DOCS_INDEX_FILE), exist_ok=True)
 
+# Write main HTML output
 with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
     f.write(html_content)
 
-print(f"Done! Map saved to {OUTPUT_FILE}")
+# Also write to docs/index.html for GitHub Pages hosting
+with open(DOCS_INDEX_FILE, "w", encoding="utf-8") as f:
+    f.write(html_content)
+
+print(f"Done! Map saved to {OUTPUT_FILE} and {DOCS_INDEX_FILE}")
